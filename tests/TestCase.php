@@ -36,6 +36,12 @@ abstract class TestCase extends Orchestra
             $this->loadMigrationsFrom($taxonPath);
         }
 
+        // Load vendor migrations (dependency for purchasing)
+        $vendorPath = dirname(__DIR__, 4).'/vendor/main/database/migrations';
+        if (is_dir($vendorPath)) {
+            $this->loadMigrationsFrom($vendorPath);
+        }
+
         // Load inventory migrations
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
