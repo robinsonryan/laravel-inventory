@@ -30,6 +30,13 @@ abstract class TestCase extends Orchestra
 
     protected function defineDatabaseMigrations(): void
     {
+        // Load taxon migrations first (dependency)
+        $taxonPath = dirname(__DIR__, 4).'/taxon/database/migrations';
+        if (is_dir($taxonPath)) {
+            $this->loadMigrationsFrom($taxonPath);
+        }
+
+        // Load inventory migrations
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
 
@@ -41,5 +48,14 @@ abstract class TestCase extends Orchestra
             'database' => ':memory:',
             'prefix' => '',
         ]);
+
+        // Configure taxon for UUID7
+        $app['config']->set('taxon.id_type', 'uuid7');
+        $app['config']->set('taxon.tenant.enabled', false);
+        $app['config']->set('taxon.auto_create', true);
+
+        // Configure inventory
+        $app['config']->set('inventory.id_type', 'uuid7');
+        $app['config']->set('inventory.tenant.enabled', false);
     }
 }
