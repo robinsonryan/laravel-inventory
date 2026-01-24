@@ -1,0 +1,52 @@
+{
+    "name": "robinsonryan/inventory",
+    "description": "Full inventory management system for Laravel applications",
+    "keywords": ["laravel", "inventory", "stock", "purchasing", "warehouse"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Ryan Robinson"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "illuminate/contracts": "^11.0|^12.0",
+        "illuminate/database": "^11.0|^12.0",
+        "illuminate/support": "^11.0|^12.0",
+        "robinsonryan/taxon": "@dev",
+        "robinsonryan/vendor": "@dev"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.0",
+        "orchestra/testbench": "^9.0|^10.0",
+        "pestphp/pest": "^3.0",
+        "pestphp/pest-plugin-laravel": "^3.0",
+        "rector/rector": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "RobinsonRyan\\Inventory\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "RobinsonRyan\\Inventory\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "RobinsonRyan\\Inventory\\InventoryServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
