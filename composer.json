@@ -31,6 +31,7 @@
     },
     "autoload-dev": {
         "psr-4": {
+            "RobinsonRyan\\Inventory\\Stock\\Database\\Factories\\": "database/factories/Stock/",
             "RobinsonRyan\\Inventory\\Tests\\": "tests/"
         }
     },
