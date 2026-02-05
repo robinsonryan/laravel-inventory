@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Database\Factories\Catalog\KitFactory;
+use RobinsonRyan\Taxon\HasTags;
 
 /**
  * @property string $id
@@ -31,10 +32,12 @@ use RobinsonRyan\Inventory\Database\Factories\Catalog\KitFactory;
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Kit> $children
  * @property-read \Illuminate\Database\Eloquent\Collection<int, KitItem> $kitItems
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Item> $items
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \RobinsonRyan\Taxon\Models\Tag> $tags
  */
 final class Kit extends Model
 {
     use HasFactory;
+    use HasTags;
     use HasUuid7;
 
     protected $fillable = [
