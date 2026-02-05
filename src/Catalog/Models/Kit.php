@@ -15,12 +15,20 @@ use RobinsonRyan\Inventory\Database\Factories\Catalog\KitFactory;
 /**
  * @property string $id
  * @property string $item_id
+ * @property string|null $parent_kit_id
  * @property string $name
  * @property string|null $description
  * @property bool $is_active
+ * @property string|null $retail_price
+ * @property string|null $dealer_price
+ * @property bool $is_customer_selectable
+ * @property string|null $display_description
+ * @property int $display_sort_order
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read Item $item
+ * @property-read Kit|null $parent
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Kit> $children
  * @property-read \Illuminate\Database\Eloquent\Collection<int, KitItem> $kitItems
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Item> $items
  */
@@ -31,17 +39,29 @@ final class Kit extends Model
 
     protected $fillable = [
         'item_id',
+        'parent_kit_id',
         'name',
         'description',
         'is_active',
+        'retail_price',
+        'dealer_price',
+        'is_customer_selectable',
+        'display_description',
+        'display_sort_order',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'retail_price' => 'decimal:2',
+        'dealer_price' => 'decimal:2',
+        'is_customer_selectable' => 'boolean',
+        'display_sort_order' => 'integer',
     ];
 
     protected $attributes = [
         'is_active' => true,
+        'is_customer_selectable' => false,
+        'display_sort_order' => 0,
     ];
 
     public function getTable(): string
@@ -57,6 +77,56 @@ final class Kit extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class, 'item_id');
+    }
+
+    /**
+     * Parent kit (for options that belong to a conversion).
+     *
+     * @return BelongsTo<Kit, $this>
+     */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_kit_id');
+    }
+
+    /**
+     * Child kits (options that belong to this conversion).
+     *
+     * @return HasMany<Kit, $this>
+     */
+    public function children(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_kit_id')->orderBy('display_sort_order');
+    }
+
+    /**
+     * Check if this kit is a conversion (top-level, no parent).
+     */
+    public function isConversion(): bool
+    {
+        return $this->parent_kit_id === null;
+    }
+
+    /**
+     * Check if this kit is an option (has a parent conversion).
+     */
+    public function isOption(): bool
+    {
+        return $this->parent_kit_id !== null;
+    }
+
+    /**
+     * Get the effective price based on pricing type.
+     *
+     * @param  string  $pricingType  Either 'contract' for dealer pricing or 'retail' for retail pricing
+     */
+    public function getEffectivePrice(string $pricingType = 'retail'): ?string
+    {
+        if ($pricingType === 'contract') {
+            return $this->dealer_price ?? $this->retail_price;
+        }
+
+        return $this->retail_price ?? $this->dealer_price;
     }
 
     /**

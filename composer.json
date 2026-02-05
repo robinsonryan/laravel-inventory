@@ -26,12 +26,12 @@
     },
     "autoload": {
         "psr-4": {
-            "RobinsonRyan\\Inventory\\": "src/"
+            "RobinsonRyan\\Inventory\\": "src/",
+            "RobinsonRyan\\Inventory\\Database\\Factories\\": "database/factories/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "RobinsonRyan\\Inventory\\Stock\\Database\\Factories\\": "database/factories/Stock/",
             "RobinsonRyan\\Inventory\\Tests\\": "tests/"
         }
     },
