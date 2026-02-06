@@ -160,3 +160,88 @@ describe('Kit', function (): void {
             ->and($orderedItems[2]->name)->toBe('Third');
     });
 });
+
+describe('Kit year range helpers', function (): void {
+    it('returns 1996 as default year start when no tag', function (): void {
+        $kit = Kit::factory()->create();
+
+        expect($kit->getYearStart())->toBe(1996);
+    });
+
+    it('returns year start from tag', function (): void {
+        $kit = Kit::factory()->create();
+        $kit->setTag('year-start', '2008');
+
+        expect($kit->getYearStart())->toBe(2008);
+    });
+
+    it('returns null as year end when no tag', function (): void {
+        $kit = Kit::factory()->create();
+
+        expect($kit->getYearEnd())->toBeNull();
+    });
+
+    it('returns year end from tag', function (): void {
+        $kit = Kit::factory()->create();
+        $kit->setTag('year-end', '2020');
+
+        expect($kit->getYearEnd())->toBe(2020);
+    });
+
+    it('fits year within range', function (): void {
+        $kit = Kit::factory()->create();
+        $kit->setTag('year-start', '2010');
+        $kit->setTag('year-end', '2020');
+
+        expect($kit->fitsYear(2015))->toBeTrue()
+            ->and($kit->fitsYear(2010))->toBeTrue()
+            ->and($kit->fitsYear(2020))->toBeTrue();
+    });
+
+    it('does not fit year before range', function (): void {
+        $kit = Kit::factory()->create();
+        $kit->setTag('year-start', '2010');
+        $kit->setTag('year-end', '2020');
+
+        expect($kit->fitsYear(2005))->toBeFalse();
+    });
+
+    it('does not fit year after range', function (): void {
+        $kit = Kit::factory()->create();
+        $kit->setTag('year-start', '2010');
+        $kit->setTag('year-end', '2020');
+
+        expect($kit->fitsYear(2025))->toBeFalse();
+    });
+
+    it('fits any year after start when no end year', function (): void {
+        $kit = Kit::factory()->create();
+        $kit->setTag('year-start', '2010');
+        // No year-end = open-ended
+
+        expect($kit->fitsYear(2010))->toBeTrue()
+            ->and($kit->fitsYear(2050))->toBeTrue();
+    });
+});
+
+describe('Kit option fields', function (): void {
+    it('can set option_group', function (): void {
+        $kit = Kit::factory()->create(['option_group' => 'shocks']);
+
+        expect($kit->option_group)->toBe('shocks');
+    });
+
+    it('can set option_group_exclusive', function (): void {
+        $kit = Kit::factory()->create(['option_group_exclusive' => true]);
+
+        expect($kit->option_group_exclusive)->toBeTrue();
+    });
+
+    it('casts sets_vehicle_attribute to array', function (): void {
+        $kit = Kit::factory()->create([
+            'sets_vehicle_attribute' => ['wheelbase' => '139'],
+        ]);
+
+        expect($kit->sets_vehicle_attribute)->toBe(['wheelbase' => '139']);
+    });
+});

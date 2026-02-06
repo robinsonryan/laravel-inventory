@@ -31,6 +31,9 @@ final class KitFactory extends Factory
             'is_customer_selectable' => false,
             'display_description' => null,
             'display_sort_order' => 0,
+            'option_group' => null,
+            'option_group_exclusive' => false,
+            'sets_vehicle_attribute' => null,
         ];
     }
 

@@ -25,6 +25,9 @@ use RobinsonRyan\Taxon\HasTags;
  * @property bool $is_customer_selectable
  * @property string|null $display_description
  * @property int $display_sort_order
+ * @property string|null $option_group
+ * @property bool $option_group_exclusive
+ * @property array<string, mixed>|null $sets_vehicle_attribute
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read Item $item
@@ -51,6 +54,9 @@ final class Kit extends Model
         'is_customer_selectable',
         'display_description',
         'display_sort_order',
+        'option_group',
+        'option_group_exclusive',
+        'sets_vehicle_attribute',
     ];
 
     protected $casts = [
@@ -59,6 +65,8 @@ final class Kit extends Model
         'dealer_price' => 'decimal:2',
         'is_customer_selectable' => 'boolean',
         'display_sort_order' => 'integer',
+        'option_group_exclusive' => 'boolean',
+        'sets_vehicle_attribute' => 'array',
     ];
 
     protected $attributes = [
@@ -183,6 +191,45 @@ final class Kit extends Model
 
             return $quantity * $price;
         });
+    }
+
+    /**
+     * Get the start year from tags (defaults to 1996 if not set).
+     */
+    public function getYearStart(): int
+    {
+        $tag = $this->getTagValueIn('year-start');
+
+        return $tag !== null ? (int) $tag : 1996;
+    }
+
+    /**
+     * Get the end year from tags (null = current and future).
+     */
+    public function getYearEnd(): ?int
+    {
+        $tag = $this->getTagValueIn('year-end');
+
+        return $tag !== null ? (int) $tag : null;
+    }
+
+    /**
+     * Check if kit applies to the given year.
+     */
+    public function fitsYear(int $year): bool
+    {
+        $start = $this->getYearStart();
+        $end = $this->getYearEnd();
+
+        if ($year < $start) {
+            return false;
+        }
+
+        if ($end !== null && $year > $end) {
+            return false;
+        }
+
+        return true;
     }
 
     protected static function newFactory(): KitFactory
