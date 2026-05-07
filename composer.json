@@ -1,5 +1,5 @@
 {
-    "name": "robinsonryan/inventory",
+    "name": "robinsonryan/laravel-inventory",
     "description": "Full inventory management system for Laravel applications",
     "keywords": ["laravel", "inventory", "stock", "purchasing", "warehouse"],
     "license": "MIT",
