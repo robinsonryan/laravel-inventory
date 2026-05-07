@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -11,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create(config('inventory.tables.stock_movements', 'stock_movements'), function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->uuid('id')->primary()->default(DB::raw('uuidv7()'));
             $table->uuid('tenant_id')->index();
             $table->uuid('item_id');
             $table->uuid('from_location_id')->nullable();
