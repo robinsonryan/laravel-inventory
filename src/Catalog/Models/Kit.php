@@ -27,6 +27,8 @@ use RobinsonRyan\Taxon\HasTags;
  * @property int $display_sort_order
  * @property string|null $option_group
  * @property bool $option_group_exclusive
+ * @property string|null $option_slot
+ * @property bool $is_standard
  * @property array<string, mixed>|null $sets_vehicle_attribute
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
@@ -56,6 +58,8 @@ final class Kit extends Model
         'display_sort_order',
         'option_group',
         'option_group_exclusive',
+        'option_slot',
+        'is_standard',
         'sets_vehicle_attribute',
     ];
 
@@ -66,6 +70,7 @@ final class Kit extends Model
         'is_customer_selectable' => 'boolean',
         'display_sort_order' => 'integer',
         'option_group_exclusive' => 'boolean',
+        'is_standard' => 'boolean',
         'sets_vehicle_attribute' => 'array',
     ];
 
@@ -124,6 +129,34 @@ final class Kit extends Model
     public function isOption(): bool
     {
         return $this->parent_kit_id !== null;
+    }
+
+    /**
+     * Check if this kit is a standard (no-upgrade) option.
+     */
+    public function isStandard(): bool
+    {
+        return $this->is_standard;
+    }
+
+    /**
+     * Scope to find kits in a specific option group and slot.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<self>
+     */
+    public function scopeInGroupAndSlot(
+        \Illuminate\Database\Eloquent\Builder $query,
+        string $optionGroup,
+        ?string $optionSlot = null,
+    ): \Illuminate\Database\Eloquent\Builder {
+        $query->where('option_group', $optionGroup);
+
+        if ($optionSlot !== null) {
+            $query->where('option_slot', $optionSlot);
+        }
+
+        return $query;
     }
 
     /**
