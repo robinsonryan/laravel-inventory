@@ -7,3 +7,12 @@
 composer.lock
 .php-cs-fixer.cache
 .phpunit.result.cache
+
+# Claude harness symlinks (managed by link.sh, not committed)
+.claude/agents
+.claude/constitution.md
+.claude/imports
+.claude/knowledge
+.claude/skills
+.claude/scheduled_tasks
+.claude/scheduled_tasks.lock
