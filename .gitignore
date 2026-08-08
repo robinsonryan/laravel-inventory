@@ -18,3 +18,6 @@ composer.lock
 .claude/skills
 .claude/scheduled_tasks
 .claude/scheduled_tasks.lock
+
+# DDEV-generated router certs/config (per-machine)
+.ddev/traefik/
