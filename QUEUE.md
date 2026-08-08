@@ -111,12 +111,9 @@ Root causes, largest first:
 
 ## Blocked
 
-### DDEV project-name collision: `inventory`
-- **Added**: 2026-08-07 · Track P / P3 quality-baseline gating
-- **Tier**: SOLO
-- **Blocked on**: Ryan's approval — `.ddev/config.yaml` is a protected file
-- **Context**: this package's `.ddev/config.yaml` declares `name: inventory`, which collides with an unrelated Laravel app at `~/dev/sites/modern/inventory/main` that has owned the `inventory` DDEV registration for weeks. `ddev describe` here fails with "a project (web container) in running state already exists for inventory".
-- **Proposed fix**: rename this package's project to `inventory-pkg` in `.ddev/config.yaml`. Every sibling package already names its DDEV project after itself, and `vendor-pkg` shows the precedent for a directory/name split.
-- **Interim workaround (in place, untracked, deliberately NOT committed)**: `.ddev/config.projectname.yaml` containing `name: inventory-pkg`. DDEV merges `config.*.yaml` over `config.yaml`, so the package starts under its own name without touching the protected file. **If you are wondering why `ddev list` shows `inventory-pkg` while `.ddev/config.yaml` says `inventory`, that file is why.** Delete it once the rename lands.
-
 ## Archive
+
+### ~~DDEV project-name collision: `inventory`~~ — RESOLVED 2026-08-07
+- **Resolved by**: deleting the unrelated legacy app's DDEV registration and renaming its project to `inventory-legacy` in its own committed `.ddev/config.yaml` (`~/dev/sites/modern/inventory/main`, commit `f2b9110`). Ryan: that app is legacy — the thing it was built for is no longer being done.
+- **Outcome**: this package now runs as `inventory` under its own **unmodified** `.ddev/config.yaml`. No rename was needed here, and the untracked `.ddev/config.projectname.yaml` overlay has been deleted — no workaround file remains.
+
