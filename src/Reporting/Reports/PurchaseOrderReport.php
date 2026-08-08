@@ -7,10 +7,15 @@ namespace RobinsonRyan\Inventory\Reporting\Reports;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrder;
+use RobinsonRyan\Inventory\Purchasing\TagDefinitions\PurchaseOrderStatusDefinition;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
+use RobinsonRyan\Inventory\Reporting\Support\TagRowValues;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 use RobinsonRyan\Inventory\Support\TableResolver;
+use RobinsonRyan\Inventory\Support\TagQuery;
 use RobinsonRyan\Vendor\Models\Vendor;
 
 final class PurchaseOrderReport implements ReportInterface
@@ -29,12 +34,21 @@ final class PurchaseOrderReport implements ReportInterface
         $receiptsTable = TableResolver::resolve('receipts', 'receipts');
         $receiptLinesTable = TableResolver::resolve('receipt_lines', 'receipt_lines');
 
-        // Subquery to get received value per PO
+        // Received value per purchase order. The counted quantity comes from the
+        // receipt line — that is all the receiving desk records — and the price
+        // comes from the order line it satisfies, because price is agreed when
+        // ordering and is not something receiving staff know or capture.
         $receivedSubquery = DB::table($receiptLinesTable)
             ->join($receiptsTable, "{$receiptLinesTable}.receipt_id", '=', "{$receiptsTable}.id")
+            ->join(
+                $purchaseOrderLinesTable,
+                "{$receiptLinesTable}.purchase_order_line_id",
+                '=',
+                "{$purchaseOrderLinesTable}.id",
+            )
             ->select([
                 "{$receiptsTable}.purchase_order_id",
-                DB::raw("CAST(SUM({$receiptLinesTable}.received_quantity * {$receiptLinesTable}.unit_cost) AS DECIMAL(15,2)) as received_value"),
+                DB::raw("CAST(SUM({$receiptLinesTable}.quantity * {$purchaseOrderLinesTable}.unit_cost) AS DECIMAL(15,2)) as received_value"),
             ])
             ->groupBy("{$receiptsTable}.purchase_order_id");
 
@@ -56,7 +70,6 @@ final class PurchaseOrderReport implements ReportInterface
             ->select([
                 "{$purchaseOrdersTable}.id as po_id",
                 "{$purchaseOrdersTable}.po_number",
-                "{$purchaseOrdersTable}.status",
                 "{$purchaseOrdersTable}.vendor_id",
                 "{$purchaseOrdersTable}.order_date",
                 "{$purchaseOrdersTable}.expected_date",
@@ -79,14 +92,28 @@ final class PurchaseOrderReport implements ReportInterface
             $query->where("{$purchaseOrdersTable}.vendor_id", $this->vendorId);
         }
 
+        // The status is a tag, so it is filtered through the ids taxon says
+        // carry that value rather than through a column that does not exist.
         if ($this->status !== null) {
-            $query->where("{$purchaseOrdersTable}.status", $this->status);
+            $query->whereIn("{$purchaseOrdersTable}.id", TagQuery::filterIdsByTagValue(
+                ModelResolver::resolve('purchase_order', PurchaseOrder::class),
+                PurchaseOrderStatusDefinition::class,
+                $this->status,
+            ));
         }
 
         // Normalise the raw stdClass result rows to arrays once, here, rather
         // than leaving every exporter to cast defensively.
         /** @var Collection<int, array<string, mixed>> $rows */
         $rows = $query->get()->map(fn (object $row): array => (array) $row);
+
+        $rows = TagRowValues::attach(
+            $rows,
+            ModelResolver::resolve('purchase_order', PurchaseOrder::class),
+            PurchaseOrderStatusDefinition::class,
+            'po_id',
+            'status',
+        );
 
         // Try to get vendor names if vendor model is available
         $rows = $this->attachVendorNames($rows);
@@ -134,7 +161,7 @@ final class PurchaseOrderReport implements ReportInterface
         return [
             new ColumnDefinition('po_id', 'PO ID', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('po_number', 'PO Number', ColumnDefinition::TYPE_STRING),
-            new ColumnDefinition('status', 'Status', ColumnDefinition::TYPE_STRING),
+            new ColumnDefinition('status_label', 'Status', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('vendor_id', 'Vendor ID', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('vendor_name', 'Vendor Name', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('order_date', 'Order Date', ColumnDefinition::TYPE_DATE),

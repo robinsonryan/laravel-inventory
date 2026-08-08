@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
+use RobinsonRyan\Inventory\Support\MovementScopes;
 
 final class DemandAnalyzer
 {
@@ -80,12 +81,11 @@ final class DemandAnalyzer
      */
     public function getTotalConsumption(string $itemId, Carbon $from, Carbon $to): float
     {
-        // Sum up all "consumption" type movements (outgoing stock)
-        $consumption = $this->getMovementModel()::query()
+        // Depletion is defined once, in MovementScopes, so the demand analyser
+        // and the low-stock report cannot drift apart on what "usage" means.
+        $consumption = MovementScopes::depleting($this->getMovementModel()::query())
             ->where('item_id', $itemId)
             ->whereBetween('created_at', [$from, $to])
-            ->whereNotNull('from_location_id')
-            ->whereNull('to_location_id')
             ->sum('quantity');
 
         return abs((float) $consumption);
@@ -111,12 +111,10 @@ final class DemandAnalyzer
 
         $from = Carbon::now()->subDays($periods * $daysPerPeriod);
 
-        $results = $this->getMovementModel()::query()
+        $results = MovementScopes::depleting($this->getMovementModel()::query())
             ->selectRaw("{$periodExpression} as period, SUM(ABS(quantity)) as consumption")
             ->where('item_id', $itemId)
             ->where('created_at', '>=', $from)
-            ->whereNotNull('from_location_id')
-            ->whereNull('to_location_id')
             ->groupBy('period')
             ->orderBy('period')
             ->get();

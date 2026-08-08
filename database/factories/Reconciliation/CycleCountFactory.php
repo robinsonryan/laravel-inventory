@@ -41,7 +41,7 @@ final class CycleCountFactory extends Factory
         return $this->state(fn (): array => [
             'started_at' => now()->subHours($this->faker->numberBetween(1, 24)),
         ])->afterCreating(function (CycleCount $count): void {
-            $count->status = 'in_progress';
+            $count->status = 'in-progress';
         });
     }
 

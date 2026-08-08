@@ -36,7 +36,9 @@ describe('CsvExporter', function (): void {
         $csv = $this->reportService->export($data, 'csv');
 
         expect($csv)->toBeString()
-            ->toContain('Item ID,SKU,Item Name')
+            // fputcsv() encloses any field containing a space, so the two-word
+            // headings arrive quoted.
+            ->toContain('"Item ID",SKU,"Item Name"')
             ->toContain('TEST-001')
             ->toContain('Test Item')
             ->toContain('100');
@@ -49,7 +51,9 @@ describe('CsvExporter', function (): void {
 
         // Should only have headers
         expect($csv)->toBeString()
-            ->toContain('Item ID,SKU,Item Name');
+            // fputcsv() encloses any field containing a space, so the two-word
+            // headings arrive quoted.
+            ->toContain('"Item ID",SKU,"Item Name"');
 
         $lines = explode("\n", trim($csv));
         expect(count($lines))->toBe(1); // Just header row
@@ -166,6 +170,33 @@ describe('JsonExporter', function (): void {
             ->toBeEmpty();
     });
 
+    it('carries the stable value of a tag field that the spreadsheet leaves out', function (): void {
+        $location = Location::factory()->warehouse()->create();
+        $item = Item::factory()->part()->create(['sku' => 'TEST-001']);
+
+        Stock::factory()
+            ->forItem($item->id)
+            ->forLocation($location)
+            ->withQuantity(100)
+            ->create();
+
+        $report = new StockValuationReport;
+        $data = $this->reportService->generate($report);
+
+        $decoded = json_decode($this->reportService->export($data, 'json'), true);
+        $csv = $this->reportService->export($data, 'csv');
+
+        // The feed gets the wording and the slug; the spreadsheet gets only the
+        // wording, under its ordinary heading. An integration keys off the slug
+        // so that rewording the label cannot break it.
+        expect($decoded['rows'][0]['category_label'])->toBe('Part')
+            ->and($decoded['rows'][0]['category_value'])->toBe('part');
+
+        expect(array_column($decoded['columns'], 'key'))->not->toContain('category_value');
+        expect($csv)->toContain('Category')
+            ->not->toContain('category_value');
+    });
+
     it('includes metadata when requested', function (): void {
         $data = new ReportData(
             title: 'Test Report',
@@ -255,6 +286,32 @@ describe('AccountingExporter', function (): void {
             ->toContain('1000.00');
     });
 
+    it('separates every IIF field with a real tab', function (): void {
+        // IIF is a tab-separated format and QuickBooks rejects a file that is
+        // not. A backslash and a "t" look close enough in a diff to survive
+        // review, so the header is asserted character for character.
+        $data = new ReportData(
+            title: 'Stock Valuation',
+            columns: [new ColumnDefinition('item_name', 'Item Name')],
+            rows: collect([
+                (object) [
+                    'item_name' => 'Test Item',
+                    'item_sku' => 'TEST-001',
+                    'total_value' => 1000.00,
+                    'quantity' => 100,
+                ],
+            ]),
+            generatedAt: Carbon::now(),
+        );
+
+        $lines = explode("\r\n", (new AccountingExporter(AccountingExporter::FORMAT_IIF))->export($data));
+
+        expect($lines[0])->toBe("!TRNS\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO")
+            ->and($lines[1])->toBe("!SPL\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO")
+            ->and(explode("\t", $lines[3]))->toHaveCount(7)
+            ->and(explode("\t", $lines[4]))->toHaveCount(7);
+    });
+
     it('exports to QIF format', function (): void {
         $data = new ReportData(
             title: 'Stock Valuation',
@@ -306,13 +363,15 @@ describe('AccountingExporter', function (): void {
         $exporter = new AccountingExporter(AccountingExporter::FORMAT_IIF);
         $output = $exporter->export($data);
 
-        // Should have headers but no transaction data
-        expect($output)->toContain('!TRNS')
-            ->not->toContain('ENDTRNS');
-
-        // Actually it should have headers:
+        // An IIF file opens with three lines declaring the record format, and
+        // `!ENDTRNS` is one of them — the bang marks it as part of the
+        // declaration, not as the end of a transaction. With no rows there is
+        // no transaction, so no bare ENDTRNS line may follow.
         $lines = explode("\r\n", $output);
-        expect(count($lines))->toBe(3); // 3 header lines only
+
+        expect($output)->toContain('!TRNS');
+        expect($lines)->toHaveCount(3)
+            ->not->toContain('ENDTRNS');
     });
 });
 

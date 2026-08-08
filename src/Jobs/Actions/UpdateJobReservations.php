@@ -6,10 +6,12 @@ namespace RobinsonRyan\Inventory\Jobs\Actions;
 
 use Illuminate\Support\Facades\Event;
 use RobinsonRyan\Inventory\Contracts\JobContract;
+use RobinsonRyan\Inventory\Exceptions\CannotReserveException;
 use RobinsonRyan\Inventory\Jobs\Events\InsufficientStock;
 use RobinsonRyan\Inventory\Jobs\Events\PartsReleased;
 use RobinsonRyan\Inventory\Jobs\Events\PartsReserved;
 use RobinsonRyan\Inventory\Stock\Data\ReservationData;
+use RobinsonRyan\Inventory\Stock\Models\Reservation;
 use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 
 final readonly class UpdateJobReservations
@@ -71,14 +73,11 @@ final readonly class UpdateJobReservations
                     continue;
                 }
 
-                $newReservations[] = $this->reservationService->reserve(new ReservationData(
-                    itemId: $item['item_id'],
-                    jobType: $jobType,
-                    jobId: $jobId,
-                    quantity: $requestedQuantity,
-                    lineId: $item['line_id'] ?? null,
-                    expiryHours: config('inventory.rules.reservation_expiry_hours'),
-                ));
+                $reservation = $this->reserveLine($jobType, $jobId, $item, $requestedQuantity);
+
+                if ($reservation instanceof Reservation) {
+                    $newReservations[] = $reservation;
+                }
             } elseif ((float) $existingReservation->quantity !== $requestedQuantity) {
                 // Quantity changed - release old and create new
                 $this->reservationService->release($existingReservation);
@@ -97,14 +96,11 @@ final readonly class UpdateJobReservations
                     continue;
                 }
 
-                $newReservations[] = $this->reservationService->reserve(new ReservationData(
-                    itemId: $item['item_id'],
-                    jobType: $jobType,
-                    jobId: $jobId,
-                    quantity: $requestedQuantity,
-                    lineId: $item['line_id'] ?? null,
-                    expiryHours: config('inventory.rules.reservation_expiry_hours'),
-                ));
+                $reservation = $this->reserveLine($jobType, $jobId, $item, $requestedQuantity);
+
+                if ($reservation instanceof Reservation) {
+                    $newReservations[] = $reservation;
+                }
             }
             // If quantity unchanged, keep existing reservation
         }
@@ -124,6 +120,34 @@ final readonly class UpdateJobReservations
                 jobId: $jobId,
                 reservations: $newReservations,
             ));
+        }
+    }
+
+    /**
+     * Reserve one line, reporting a refusal through the insufficient-stock event.
+     *
+     * Stock that exists but sits in more than one location cannot back a single
+     * reservation, and that must not escape as an uncaught exception — the event
+     * distinguishes it from an outright shortage so the host app knows whether
+     * to consolidate or to reorder.
+     *
+     * @param  array{item_id: string, quantity: int|float, line_id?: string}  $item
+     */
+    private function reserveLine(string $jobType, string $jobId, array $item, float $quantity): ?Reservation
+    {
+        try {
+            return $this->reservationService->reserve(new ReservationData(
+                itemId: $item['item_id'],
+                jobType: $jobType,
+                jobId: $jobId,
+                quantity: $quantity,
+                lineId: $item['line_id'] ?? null,
+                expiryHours: config('inventory.rules.reservation_expiry_hours'),
+            ));
+        } catch (CannotReserveException $refusal) {
+            Event::dispatch(InsufficientStock::fromRefusal($jobType, $jobId, $refusal));
+
+            return null;
         }
     }
 

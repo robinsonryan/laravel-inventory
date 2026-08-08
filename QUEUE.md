@@ -5,49 +5,107 @@
 
 ## Queued
 
-### 🔴 The test suite is red: 134 of 480 tests fail (all pre-existing)
+### 🔴 Nothing in this package is tenant-scoped
 
-- **Added**: 2026-08-07 · Track P / P3 quality-baseline gating
-- **Tier**: FULL — this is package repair, not a gate fix, and several items are product decisions
-- **Why deferred**: `lint:check`, `analyze` and `refactor:check` are green; `test` is not, and cannot be
-  made green without design decisions that belong to the package owner. **`composer quality` exits
-  non-zero.** Do not treat P3 as done.
-- **Provenance**: this suite had never run — the package had no `vendor/` and no `composer.lock`, so
-  every failure below predates the gating session. Verified: no failure references any symbol
-  introduced during gating, and the two structural offenders (`ReservationService` already `final`,
-  `items` never having a `category` column) were confirmed against `git show HEAD`.
+- **Added**: 2026-08-08 · test-suite repair · found independently by two reviewers
+- **Tier**: FULL — it is a data-isolation change touching every module
+- **Blocks**: any multi-tenant host. The package README describes it as "multi-tenant by default."
 
-Root causes, largest first:
+`src/Concerns/BelongsToTenant.php` stamps `tenant_id` on create and adds **no global query scope**.
+Consequences, both verified by grep rather than inferred:
 
-1. **Tag values are never seeded (~55 failures).** Every `TagDefinition` here declares a
-   `DEFAULT_VALUES` constant, and **nothing ever consumes it.** Taxon's
-   `TagDefinition::values()` reads the tag's *children rows from the database*, and
-   `isValidValue()` returns true only when that list is empty. So the first write of a status
-   auto-creates it, and the *second, different* value is then rejected —
-   `'submitted' is not a valid value for PurchaseOrderStatusDefinition`. **Highest-leverage
-   fix by a wide margin**: give the package an install/seed path that walks each definition's
-   `DEFAULT_VALUES` through taxon's `TagDefinition::firstOrCreateValue()`, and call it from
-   `tests/TestCase.php`. Decisions needed: artisan command vs seeder vs provider boot, and
-   whether seeding is per-tenant.
-2. **Tags are queried as if they were columns (~40 failures).** `category` (items), `type`
-   (stock_movements, locations), and `status` (reservations, purchase_orders, cycle_counts)
-   are taxon tag attributes, not columns — but the six reports `select`/`where` them directly,
-   producing `no such column: items.category`, `no such column: stock_movements.type`,
-   `no such column: reservations.status`, `table cycle_counts has no column named status`.
-   Decision needed: denormalise these onto the tables, or rewrite the reports to join
-   `tags`/`taggables`. This is the package's central unresolved design question.
-3. **`ReservationService` and `Reservation` are `final`, and the tests mock them (16 failures).**
-   `pint.json` enforces `final_class`, so Mockery cannot double them:
-   *"marked final and its methods cannot be replaced"*. Fix: extract an interface the listeners
-   depend on, or convert those unit tests to integration tests against a real service.
-4. **`receipt_lines.received_quantity` does not exist (5 failures).** Code and tests read/write
-   the column; the migration never created it. Confirmed absent at HEAD.
-5. **Tag assigned before the row is persisted (2 failures).**
-   `NOT NULL constraint failed: taggables.taggable_id` — `setTagAs()` attaches a pivot row, so
-   the owning model has to be saved first.
-6. **Residual assertion failures (~10).** e.g. `Failed asserting that 100.0 is identical to 75.0`,
-   `Cannot fulfill reservation without a location`, and an IIF exporter expecting output *not* to
-   contain `ENDTRNS`. Work these last — several are probably knock-on from 1 and 2.
+- Every report returns every tenant's rows. There is not one tenant reference in `src/Reporting/`.
+- `ReservationService::getForJob()` matches on job class + job id alone, so tenant A cancelling a
+  work order releases tenant B's reservations for a work order with the same id.
+- `JobContract::getInventoryTenantId()` and `shouldHoldReservations()` are declared and **never
+  called anywhere in `src/`**.
+
+Invisible to the suite because every test runs as one fixed tenant. Overlaps the unread-config item
+below — resolve them together, and decide there whether tenancy is mandatory or optional before
+writing the scope.
+
+### Reservation writes are not safe under concurrency
+
+- **Added**: 2026-08-08 · test-suite repair review
+- **Tier**: LIGHT
+- **Context**: `reserve()` reads availability then increments with no `lockForUpdate`, and
+  `fulfill()`/`partialFulfill()` re-read the stored row inside their transaction without locking it.
+  Two concurrent reserves against the same stock both pass the check and over-commit the hold; two
+  concurrent fulfilments race. Invisible on SQLite (single writer), real on PostgreSQL and MySQL —
+  which is the deployment target. Direction: lock the stock row, or push the check into the update
+  itself (`UPDATE … WHERE quantity - reserved_quantity >= ?`), which also reuses the bound-parameter
+  cast lesson from the SQLite affinity bug.
+
+### A reservation cannot span locations, so spread stock is refused
+
+- **Added**: 2026-08-08 · Ryan's decision during the test-suite repair
+- **Tier**: FULL — schema and interface change
+- **Context**: a reservation holds exactly one stock record, but availability is summed across all
+  of them. 50 units in the warehouse and 50 on a truck cannot back a reservation for 60, and the
+  service now refuses with a message naming the fullest location. **Ryan chose this deliberately**
+  over implementing the split, to keep a schema change off the repair branch. The real fix makes one
+  logical reservation hold several allocations, and touches picking and fulfilment. Until then a
+  warehouse with genuinely distributed stock will see refusals it should not.
+
+### Receiving inspection: claimed quantity versus accepted quantity
+
+- **Added**: 2026-08-08 · Ryan's decision during the test-suite repair
+- **Tier**: LIGHT
+- **Context**: `receipt_lines.received_quantity` and `.unit_cost` were removed as duplicates —
+  a receipt line's `quantity` is by definition what was received, and price belongs to the order
+  line. The one reading that would have made a second count real is **receiving inspection**: the
+  packing slip claims 10, eight pass inspection, two are damaged. That is a genuine warehouse
+  requirement and this package has none of it — no inspection step, no rejection reason vocabulary,
+  nothing that would ever set two counts differently. Build it deliberately if wanted, with the
+  reason field it needs; do not reintroduce a bare second column.
+
+### Stock record selection ignores lots and expiry
+
+- **Added**: 2026-08-08 · test-suite repair review
+- **Tier**: LIGHT
+- **Context**: `reserve()` now orders candidate stock by id (UUID7, so oldest-created first), but
+  stock rows carry `lot_number` and `expiry_date` and first-created is not soonest-expiring —
+  wrong for anything perishable. `RemoveStock` picks its record with `->first()` and no ordering at
+  all, so with several lots in one location it can decrement a *different* record than the one
+  holding the reservation. Aggregates stay correct; per-record quantities drift.
+
+### `inventory:generate-recommendations` is never registered
+
+- **Added**: 2026-08-08 · test-suite repair
+- **Tier**: SOLO
+- **Context**: the provider gained a `commands()` call for `inventory:sync-tag-values`, and
+  `GenerateReorderRecommendationsCommand` was found to have never been registered at all — a host
+  app cannot run it. One line, but pair it with the `--tenant` item below, which is the same command.
+
+### `TagQuery` hand-writes taxon's table shape on the projection path
+
+- **Added**: 2026-08-08 · test-suite repair review
+- **Tier**: SOLO
+- **Context**: the filter path delegates to taxon's own scope, but `labelsAndValuesFor()` writes the
+  parent/child join and morph columns itself, and ignores the pivot scope columns taxon's scope
+  honours. Taxon offers no way to project a tag value into a `SELECT`, so something had to be
+  written — but it breaks silently if taxon's schema moves. Direction: upstream a projection helper
+  into taxon, and have this call it.
+
+### Reporting reads five other modules' tables directly
+
+- **Added**: 2026-08-08 · test-suite repair · Ryan flagged the smell independently
+- **Tier**: FULL
+- **Context**: every report builds raw queries against catalog, stock, purchasing and reconciliation
+  tables and their columns. That is why moving categories into taxon broke reports at all — an
+  insulated reporting layer would not have noticed. Deliberately out of scope during the repair
+  (renovating module boundaries mid-repair would have meant going red again to get green). Revisit
+  before the package grows more reports.
+
+### New items are under-stocked by the fixed 90-day averaging window
+
+- **Added**: 2026-08-08 · test-suite repair review
+- **Tier**: SOLO
+- **Context**: `ReorderCalculator` divides consumption by the requested window (90 days by default),
+  per the forecasting spec's formula. An item that has existed for 30 days and consumed 3/day gets
+  an average of 1/day and a reorder point a third of what it should be. Spec-conformant and
+  arguably wrong. A broken test fixture used to probe this accidentally; nothing tests it now.
+  Direction: divide by the shorter of the window and the item's actual history.
 
 ### `config('inventory.tenant.enabled')` and `.scoped` are documented but read by nothing
 
@@ -140,6 +198,29 @@ and no rework owed. `vendor-pkg` is 3 commits ahead of `v0.1.1`, but all three t
 ## Blocked
 
 ## Archive
+
+### ~~The test suite is red: 134 of 480 tests fail~~ — RESOLVED 2026-08-08
+- **Resolved by**: branch `fix/test-suite-repair`. 527 passing, 1402 assertions, `composer quality`
+  exits 0 with no baselines and no suppressions.
+- **Root causes, and what each turned out to be**:
+  1. *Tag values were never seeded* (63) — the declared value lists were read by nothing. They now
+     load during installation, with `inventory:sync-tag-values` as the re-runnable reload path.
+  2. *Reports queried tags as columns* (30) — resolved by wrapping taxon rather than denormalising:
+     filters go through taxon's own scope, values are attached after the fetch as
+     `<field>_label` + `<field>_value`.
+  3. *Sealed classes could not be doubled* (16) — listeners now depend on `ReservationContract`;
+     the ten tests that doubled the `Reservation` model became real integration tests. `pint.json`
+     untouched.
+  4. *Schema and residue* (25) — a missing column, tags written before the row was saved, and a set
+     of assertions that had never been able to pass.
+- **What the repair uncovered that was never a test problem**: reserving stock silently failed on
+  SQLite (a bound float compared against a computed expression is unconditionally false there); a
+  reservation's own hold blocked its own fulfilment; expired reservations could hand stock back
+  twice; recording a second cycle count was impossible; the forecasting fixtures were flinging data
+  ~450 days into the past; and exported accounting files carried literal `\t` instead of tabs.
+- **Deliberately not fixed here** — all queued above: tenant scoping, concurrency locking,
+  reservations spanning locations, receiving inspection, lot-aware stock selection, and reporting's
+  direct reads of other modules' tables.
 
 ### ~~Raise `robinsonryan/taxon`'s php floor to ^8.2~~ — RESOLVED (verify before closing)
 - **Verified 2026-08-08**: `../taxon/composer.json` now declares `"php": "^8.2"`, matching this

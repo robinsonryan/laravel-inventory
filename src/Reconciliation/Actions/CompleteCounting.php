@@ -30,10 +30,12 @@ final class CompleteCounting
      */
     private function validateCompletable(CycleCount $count): void
     {
-        if ($count->status !== 'in_progress') {
+        // Taxon slugifies every tag value it stores, so the persisted spelling is
+        // "in-progress" — never the underscored form.
+        if ($count->status !== 'in-progress') {
             throw new InvalidArgumentException(
                 sprintf(
-                    'Cannot complete cycle count in status "%s". Count must be "in_progress".',
+                    'Cannot complete cycle count in status "%s". Count must be "in-progress".',
                     $count->status,
                 ),
             );

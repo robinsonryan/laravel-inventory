@@ -101,8 +101,8 @@ final class ReconciliationService
      */
     public function canComplete(CycleCount $count): bool
     {
-        // Must be in_progress
-        if ($count->status !== 'in_progress') {
+        // Must be in-progress — taxon stores tag values slugified.
+        if ($count->status !== 'in-progress') {
             return false;
         }
 

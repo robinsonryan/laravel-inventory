@@ -117,23 +117,26 @@ change, it goes through the orchestrator, not a direct edit.
 
 Status: ☐ not started · ◐ in progress · ☑ done and proved by a passing test
 
+**All rows closed 2026-08-08.** Gate verified green independently of the builders:
+527 passed, 1402 assertions, `composer quality` exit 0.
+
 | ID | Requirement | Owner | Failures | Status |
 |---|---|---|---|---|
-| L1 | Every declared tag value exists in the database after install | Foundation | 63 | ☐ |
-| L2 | Cycle counts can be completed (`in-progress` matches) | Foundation | 3 | ☐ |
-| L3 | `receipt_lines.received_quantity` exists | Foundation | 5 | ☐ |
-| L4 | Reports filter by tag through taxon, never by phantom column | B1 | 30 | ☐ |
-| L5 | Report rows carry `_label` and `_value` per D3 | B1 | — | ☐ |
-| L6 | Tag set only after the owning record is saved | B1 | 2 | ☐ |
-| L7 | Reservation report test passes a record, not an id | B1 | 1 | ☐ |
-| L8 | Accounting exporter emits nothing for an empty report | B1 | 1 | ☐ |
-| L9 | Reserving stock reduces available quantity; releasing restores it | B2 | 10 | ☐ |
-| L10 | Fulfilling a reservation resolves its location | B2 | 3 | ☐ |
-| L11 | Listeners depend on `ReservationContract`; 6 tests use it | B2 | 6 | ☐ |
-| L12 | 10 reservation-model tests assert real outcomes | B2 | 10 | ☐ |
-| L13 | Remaining tag-value failures pass once seeded | B3 | ~40 | ☐ |
-| L14 | Receiving test uses a fixed, not random, quantity | B3 | 1 | ☐ |
-| L15 | Low-stock report and demand analyser agree on depletion (D1) | B1 + B3 via F6 | — | ☐ |
+| L1 | Every declared tag value exists in the database after install | Foundation | 63 | ☑ |
+| L2 | Cycle counts can be completed (`in-progress` matches) | Foundation | 3 | ☑ |
+| L3 | `receipt_lines.received_quantity` exists | Foundation | 5 | ☑ |
+| L4 | Reports filter by tag through taxon, never by phantom column | B1 | 30 | ☑ |
+| L5 | Report rows carry `_label` and `_value` per D3 | B1 | — | ☑ |
+| L6 | Tag set only after the owning record is saved | B1 | 2 | ☑ |
+| L7 | Reservation report test passes a record, not an id | B1 | 1 | ☑ |
+| L8 | Accounting exporter emits nothing for an empty report | B1 | 1 | ☑ |
+| L9 | Reserving stock reduces available quantity; releasing restores it | B2 | 10 | ☑ |
+| L10 | Fulfilling a reservation resolves its location | B2 | 3 | ☑ |
+| L11 | Listeners depend on `ReservationContract`; 6 tests use it | B2 | 6 | ☑ |
+| L12 | 10 reservation-model tests assert real outcomes | B2 | 10 | ☑ |
+| L13 | Remaining tag-value failures pass once seeded | B3 | ~40 | ☑ |
+| L14 | Receiving test uses a fixed, not random, quantity | B3 | 1 | ☑ |
+| L15 | Low-stock report and demand analyser agree on depletion (D1) | B1 + B3 via F6 | — | ☑ |
 
 **Non-goals for this branch** — recorded so they are not mistaken for omissions:
 
@@ -144,3 +147,38 @@ Status: ☐ not started · ◐ in progress · ☑ done and proved by a passing t
 - N4 Untested pgsql/mysql branches of the period expression. Already queued.
 - N5 Widening the constraint matrix to Pest 5 / PHPUnit 13 / PHP 8.4. Already queued.
 - N6 Tagging a release. Never automated; Ryan cuts tags.
+
+
+## Outcome
+
+**Completed.** Every ledger row above, proved by a passing test. Plus six defects that were
+never test problems and are recorded in `CHANGELOG.md` and `CLAUDE.md`: the SQLite type-affinity
+trap that made reservations silently fail, a reservation's own hold blocking its fulfilment,
+closed reservations returning stock twice (including the expiry sweep double-returning when run
+twice), the impossible second cycle count, forecasting fixtures displaced ~450 days, and
+accounting exports carrying literal `\t`.
+
+**Deviations from the plan, all deliberate:**
+
+- **R1 was wrong.** The plan said reserved quantity was never maintained. It always was — the
+  real defect was the availability lookup returning nothing on SQLite. Corrected before the
+  builder acted on it.
+- **`VarianceReport` had no phantom column** (its test did), and **`PurchaseOrderReport` did** —
+  the reverse of what the plan and the package docs claimed.
+- **`receipt_lines` gained two columns and then lost them again.** Added so the purchase-order
+  report could compute received value; removed once Ryan established that a receipt line's
+  quantity *is* the received quantity and that price belongs to the order line. The report now
+  joins for cost. Receiving inspection is queued as the real feature.
+- **Six reports needed changing, not five.**
+
+**Not completed, deliberately — all queued, none silently dropped:** tenant scoping (nothing in
+the package is scoped; two reviewers found it independently), concurrency locking on reservation
+writes, reservations spanning several stock records, receiving inspection, lot-aware stock
+selection, reporting's direct reads of other modules' tables, and the unsatisfiable first-party
+version constraints.
+
+**Review pass.** Three adversarial reviewers, one per module, each briefed with a load-bearing
+invariant rather than "review this". Findings were verified by mutation, not by reading: the
+assertion-integrity check held (every rewritten assertion provably corrected or strictly
+stronger), and two blockers plus six majors were fixed by two remediation agents, each fix
+carrying a regression test observed failing first.

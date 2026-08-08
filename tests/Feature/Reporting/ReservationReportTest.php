@@ -72,6 +72,27 @@ describe('ReservationReport', function (): void {
             ->and($data->rows->first()['job_type'])->toBe('WorkOrder');
     });
 
+    it('filters by status, and carries both the wording and the stored value', function (): void {
+        Reservation::factory()
+            ->forItem($this->item->id)
+            ->forLocation($this->location)
+            ->reserved()
+            ->create();
+
+        Reservation::factory()
+            ->forItem($this->item->id)
+            ->forLocation($this->location)
+            ->fulfilled()
+            ->create();
+
+        $report = new ReservationReport(status: 'fulfilled');
+        $data = $this->reportService->generate($report);
+
+        expect($data->rows)->toHaveCount(1)
+            ->and($data->rows->first()['status_value'])->toBe('fulfilled')
+            ->and($data->rows->first()['status_label'])->toBe('Fulfilled');
+    });
+
     it('filters by item', function (): void {
         $item2 = Item::factory()->create(['sku' => 'TEST-002']);
 
@@ -159,7 +180,7 @@ describe('ReservationReport', function (): void {
             jobId: 'wo-456',
             quantity: 5,
         ));
-        $this->reservationService->fulfill($fulfilledReservation->id);
+        $this->reservationService->fulfill($fulfilledReservation);
 
         $report = new ReservationReport;
         $data = $this->reportService->generate($report);

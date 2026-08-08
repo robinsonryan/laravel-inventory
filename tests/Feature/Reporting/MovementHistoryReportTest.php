@@ -38,7 +38,8 @@ describe('MovementHistoryReport', function (): void {
             ->and($data->title)->toBe('Movement History Report')
             ->and($data->rows)->toHaveCount(1)
             ->and($data->rows->first()['item_sku'])->toBe('TEST-001')
-            ->and($data->rows->first()['type'])->toBe('purchase');
+            ->and($data->rows->first()['type_value'])->toBe('purchase')
+            ->and($data->rows->first()['type_label'])->toBe('Purchase');
     });
 
     it('filters by date range', function (): void {
@@ -92,7 +93,8 @@ describe('MovementHistoryReport', function (): void {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()['type'])->toBe('sale');
+            ->and($data->rows->first()['type_value'])->toBe('sale')
+            ->and($data->rows->first()['type_label'])->toBe('Sale');
     });
 
     it('includes actor information', function (): void {

@@ -51,9 +51,10 @@ final class AccountingExporter implements ExporterInterface
     {
         $lines = [];
 
-        // IIF header
-        $lines[] = '!TRNS\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO';
-        $lines[] = '!SPL\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO';
+        // IIF header. Double-quoted: IIF is tab-separated, and single quotes
+        // would emit a backslash and a "t" where the tab has to be.
+        $lines[] = "!TRNS\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO";
+        $lines[] = "!SPL\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO";
         $lines[] = '!ENDTRNS';
 
         foreach ($data->rows as $row) {

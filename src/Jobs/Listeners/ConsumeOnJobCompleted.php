@@ -6,13 +6,13 @@ namespace RobinsonRyan\Inventory\Jobs\Listeners;
 
 use Illuminate\Support\Facades\Event;
 use RobinsonRyan\Inventory\Contracts\JobContract;
+use RobinsonRyan\Inventory\Contracts\ReservationContract;
 use RobinsonRyan\Inventory\Jobs\Events\PartsConsumed;
-use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 
 final readonly class ConsumeOnJobCompleted
 {
     public function __construct(
-        private ReservationService $reservationService,
+        private ReservationContract $reservationService,
     ) {}
 
     public function handle(object $event): void

@@ -21,7 +21,7 @@ final class CycleCountStatusDefinition extends TagDefinition
      */
     public const DEFAULT_VALUES = [
         'draft',
-        'in_progress',
+        'in-progress',
         'pending',
         'approved',
         'cancelled',
@@ -30,7 +30,7 @@ final class CycleCountStatusDefinition extends TagDefinition
     /**
      * @var list<string>
      */
-    public const OPEN = ['draft', 'in_progress', 'pending'];
+    public const OPEN = ['draft', 'in-progress', 'pending'];
 
     /**
      * @var list<string>

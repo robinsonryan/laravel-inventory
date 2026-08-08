@@ -85,7 +85,7 @@ describe('RecordCount', function (): void {
         expect((float) $updated->variance)->toBe(10.0);
     });
 
-    it('updates cycle count to in_progress when first count recorded', function (): void {
+    it('updates cycle count to in-progress when first count recorded', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -103,8 +103,41 @@ describe('RecordCount', function (): void {
         $action->execute($line, 95.0);
 
         $count->refresh();
-        expect($count->status)->toBe('in_progress')
+        expect($count->status)->toBe('in-progress')
             ->and($count->started_at)->not->toBeNull();
+    });
+
+    it('records a second count against an already started cycle count', function (): void {
+        $count = CycleCount::factory()
+            ->forLocation($this->location)
+            ->draft()
+            ->create();
+
+        $first = CycleCountLine::create([
+            'cycle_count_id' => $count->id,
+            'item_id' => $this->item->id,
+            'location_id' => $this->location->id,
+            'stock_id' => $this->stock->id,
+            'expected_quantity' => 100,
+        ]);
+
+        $second = CycleCountLine::create([
+            'cycle_count_id' => $count->id,
+            'item_id' => $this->item->id,
+            'location_id' => $this->location->id,
+            'stock_id' => $this->stock->id,
+            'expected_quantity' => 40,
+        ]);
+
+        $action = App::make(RecordCount::class);
+        $action->execute($first, 95.0);
+
+        // The first count moved the cycle count out of draft; the second must
+        // still be accepted against the resulting "in-progress" status.
+        $updated = $action->execute($second, 38.0);
+
+        expect((float) $updated->counted_quantity)->toBe(38.0)
+            ->and($count->fresh()->status)->toBe('in-progress');
     });
 
     it('adds notes to line', function (): void {
@@ -222,7 +255,7 @@ describe('CompleteCounting', function (): void {
         $action = App::make(CompleteCounting::class);
 
         expect(fn () => $action->execute($count))
-            ->toThrow(InvalidArgumentException::class, 'in_progress');
+            ->toThrow(InvalidArgumentException::class, 'in-progress');
     });
 
     it('cannot complete already pending count', function (): void {
@@ -234,7 +267,7 @@ describe('CompleteCounting', function (): void {
         $action = App::make(CompleteCounting::class);
 
         expect(fn () => $action->execute($count))
-            ->toThrow(InvalidArgumentException::class, 'in_progress');
+            ->toThrow(InvalidArgumentException::class, 'in-progress');
     });
 
     it('cannot complete approved count', function (): void {
@@ -246,7 +279,7 @@ describe('CompleteCounting', function (): void {
         $action = App::make(CompleteCounting::class);
 
         expect(fn () => $action->execute($count))
-            ->toThrow(InvalidArgumentException::class, 'in_progress');
+            ->toThrow(InvalidArgumentException::class, 'in-progress');
     });
 });
 
