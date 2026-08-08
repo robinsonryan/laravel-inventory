@@ -18,30 +18,45 @@ declare(strict_types=1);
  * test's own connection is about to want. Any writer produces that state,
  * whatever code it is running, so simulating it in raw SQL is honest.
  *
- * Usage: php competing-writer.php '<json payload>'
+ * Usage: php competing-writer.php '<marker path>' '<json payload>'
+ *
+ * The marker path is its own argument rather than a payload key, and everything
+ * else — including decoding the payload — happens inside the try below. A
+ * competitor that dies on a malformed payload can still write "<marker>.error",
+ * so the parent fails in milliseconds with the real reason instead of waiting
+ * out its whole timeout on a handshake that is never coming.
+ *
+ * Marker files:
+ *   <marker>            touched once the process holds its lock; the test waits
+ *                       for this before making its own attempt
+ *   <marker>.committed  touched after the commit; a test reads this to prove it
+ *                       reached its own blocking statement while the lock was
+ *                       still held, rather than after the competitor let go
+ *   <marker>.error      written instead of either on any failure
  *
  * Payload keys:
  *   host, port, database, username, password  the connection to open
- *   mode        "reserve" (raise a hold on a stock row) or
- *               "fulfill" (close a reservation and consume its stock)
- *   marker      path the process touches once it holds the lock; the test waits
- *               for this file before making its own attempt. On failure it
- *               writes "<marker>.error" instead, so a test never hangs on a
- *               competitor that died.
+ *   mode        "reserve" (raise a hold on a stock row),
+ *               "fulfill" (close a reservation and consume its stock), or
+ *               "release" (close a reservation and hand its hold back)
  *   hold_ms     how long to keep the lock before committing
  *   stock_table, reservations_table
- *   stock_id, quantity                        both modes
- *   reservation_id                            fulfill mode only
+ *   stock_id, quantity                        every mode
+ *   reservation_id                            fulfill and release modes
  */
 
-$argument = $argv[1] ?? '';
+$marker = $argv[1] ?? '';
 
-/** @var array<string, mixed> $payload */
-$payload = json_decode($argument, true, 512, JSON_THROW_ON_ERROR);
+if ($marker === '') {
+    fwrite(STDERR, 'competing-writer.php needs a marker path as its first argument.'.PHP_EOL);
 
-$marker = (string) $payload['marker'];
+    exit(1);
+}
 
 try {
+    /** @var array<string, mixed> $payload */
+    $payload = json_decode($argv[2] ?? '', true, 512, JSON_THROW_ON_ERROR);
+
     $pdo = new PDO(
         sprintf('pgsql:host=%s;port=%d;dbname=%s', $payload['host'], $payload['port'], $payload['database']),
         (string) $payload['username'],
@@ -70,25 +85,39 @@ try {
         );
         $hold->execute([$quantity, $payload['stock_id']]);
     } else {
-        // A competing fulfilment: close the reservation, give its hold back and
-        // take the units off the shelf.
+        // A competing close. Both shapes claim the reservation first and then
+        // touch its stock — the same order every closing path in
+        // ReservationService uses.
+        //
+        //   fulfill: give the hold back and take the units off the shelf
+        //   release: give the hold back and leave the units where they are
         $reservationsTable = (string) $payload['reservations_table'];
+        $closedColumn = $payload['mode'] === 'release' ? 'cancelled_at' : 'fulfilled_at';
 
         $claim = $pdo->prepare("select id from {$reservationsTable} where id = ? for update");
         $claim->execute([$payload['reservation_id']]);
         $claim->fetch();
 
         $close = $pdo->prepare(
-            "update {$reservationsTable} set fulfilled_at = now(), updated_at = now() where id = ?",
+            "update {$reservationsTable} set {$closedColumn} = now(), updated_at = now() where id = ?",
         );
         $close->execute([$payload['reservation_id']]);
 
-        $consume = $pdo->prepare(
-            "update {$stockTable}
-                set reserved_quantity = reserved_quantity - ?, quantity = quantity - ?, updated_at = now()
-              where id = ?",
-        );
-        $consume->execute([$quantity, $quantity, $payload['stock_id']]);
+        $consume = $payload['mode'] === 'release'
+            ? $pdo->prepare(
+                "update {$stockTable}
+                    set reserved_quantity = reserved_quantity - ?, updated_at = now()
+                  where id = ?",
+            )
+            : $pdo->prepare(
+                "update {$stockTable}
+                    set reserved_quantity = reserved_quantity - ?, quantity = quantity - ?, updated_at = now()
+                  where id = ?",
+            );
+
+        $consume->execute($payload['mode'] === 'release'
+            ? [$quantity, $payload['stock_id']]
+            : [$quantity, $quantity, $payload['stock_id']]);
     }
 
     // The lock is held from here until the commit below. The test is released to

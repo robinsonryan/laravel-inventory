@@ -50,6 +50,12 @@ final readonly class ReservationService implements ReservationContract
     public function reserve(ReservationData $data): Reservation
     {
         return DB::transaction(function () use ($data): Reservation {
+            // A fast path, not the safety check: refusing here keeps a request
+            // that cannot possibly succeed from taking `FOR UPDATE` locks that
+            // other callers would then queue behind. The decision that actually
+            // holds is the re-measure after the candidate search, under the lock.
+            // Both raise the same exception, which makes this look redundant — if
+            // one of the two ever has to go, it is this one, never that one.
             $available = $this->stockService->getAvailable($data->itemId, $data->locationId);
 
             if ($available < $data->quantity) {
@@ -215,18 +221,40 @@ final readonly class ReservationService implements ReservationContract
      * Expire old reservations past their expiry date.
      *
      * The sweep locks every reservation it is about to close, in one statement,
-     * before it touches a single stock row. Two things follow from that. It cannot
-     * race a fulfilment: a reservation being consumed on another connection is
-     * either committed before the lock is granted (and then fails the `whereNull`
-     * re-check, or the `closedState()` guard below) or waits for the sweep to
-     * finish. And it cannot deadlock against one: the sweep never asks for a
-     * reservation while already holding a stock row, so there is no cycle for a
-     * fulfilment — which takes a reservation and then its stock — to complete.
-     * `orderBy('id')` gives two simultaneous sweeps the same acquisition order.
+     * before it touches a single stock row. That is what stops it racing another
+     * connection closing the same reservation: the other one is either committed
+     * before the lock is granted (and then fails the `whereNull` re-check, or the
+     * `closedState()` guard below) or waits for the sweep to finish. Without that
+     * lock the sweep would hand the same hold back a second time — it is the only
+     * closing path that does not go through `syncFromStorage()`, so nothing else
+     * would catch it. `tests/Concurrency/ReservationConcurrencyTest.php` pins this
+     * specifically; deleting this one `lockForUpdate()` turns that test red.
+     *
+     * It does *not* follow that the sweep cannot deadlock, and an earlier version
+     * of this docblock wrongly said it could not. What is true is narrower: every
+     * path here takes reservation locks before stock locks, and `reserve()` takes
+     * stock without ever wanting a reservation, so there is no reservation-stock
+     * cycle for anyone to complete. Stock-stock cycles are still reachable. The
+     * sweep takes stock rows in reservation-id order, while a fulfilment takes its
+     * own reservation's stock row and then whichever row `RemoveStock` picks —
+     * which at a lot-split location can be a different one, because `fulfill()`
+     * builds its removal with no lot number and `RemoveStock` filters on item and
+     * location alone. With two lot rows in one place, the sweep can hold the
+     * second and want the first while a fulfilment holds the first and wants the
+     * second. PostgreSQL detects that and aborts one of the two transactions with
+     * a deadlock error: a loud, retryable failure rather than the silent miscount
+     * this locking exists to prevent. Fixing the ordering properly needs lot-aware
+     * record selection and is queued with the still-unlocked plain stock writes,
+     * which have the same two-row problem in `TransferStock`.
      *
      * The cost is honest and worth knowing: a sweep with a large backlog holds
      * every one of those rows until it commits, and fulfilments of those exact
-     * reservations wait. It is a batch job; run it off the request path.
+     * reservations wait. It is a batch job; run it off the request path. Hosts
+     * should also set a `lock_timeout` on the connections that do serve requests,
+     * so a request queued behind this sweep fails in a bounded time instead of
+     * hanging. The package sets none deliberately — the right value comes out of
+     * the host's latency budget, and a library that picks one for you is a library
+     * you have to fight.
      *
      * @return int Number of reservations expired
      */
@@ -355,11 +383,19 @@ final readonly class ReservationService implements ReservationContract
      *
      * Every caller runs inside `DB::transaction`, which is what gives the lock a
      * lifetime; a fifth closing path that forgets the transaction would take a
-     * lock and drop it again on the same statement. The lock is on the
-     * reservation only — the stock row it holds is taken later, by the decrement
-     * in `returnHold()`. That order (reservation, then stock) is the same in every
-     * path, and `reserve()` takes the stock row without ever wanting a
-     * reservation, so no two callers can wait on each other.
+     * lock and drop it again on the same statement. Note which paths those are:
+     * `release()`, `fulfill()` and `partialFulfill()` come through here, and
+     * `expireOld()` does not — it locks its whole candidate batch in its own
+     * `SELECT … FOR UPDATE` instead, which is why deleting that call is not caught
+     * by anything in this method.
+     *
+     * The lock is on the reservation only — the stock row it holds is taken later,
+     * by the decrement in `returnHold()`. That order (reservation, then stock) is
+     * the same in every path, and `reserve()` takes the stock row without ever
+     * wanting a reservation, so there is no reservation-stock cycle. Two callers
+     * can still wait on each other over two *stock* rows; `expireOld()`'s docblock
+     * has the shape and why the outcome is a deadlock error rather than a silently
+     * wrong number.
      */
     private function syncFromStorage(Reservation $reservation): bool
     {
@@ -486,12 +522,19 @@ final readonly class ReservationService implements ReservationContract
      * PostgreSQL's documented behaviour and what makes the wait meaningful rather
      * than merely a delay before the same stale answer.)
      *
-     * `orderBy('id')` is not cosmetic any more. A host application that reserves
-     * several items inside one transaction holds several of these locks at once,
-     * so every caller has to take them in the same sequence or two callers can
-     * each end up holding the row the other is waiting for. Ordering by primary
-     * key gives every caller that same sequence. Do not remove it, and do not
-     * reorder by availability.
+     * `orderBy('id')` is not cosmetic any more, but it buys less than an earlier
+     * version of this docblock claimed. It makes one caller's own scan
+     * deterministic — which candidate gets taken when several qualify, and which
+     * one a caller falls through to when it loses the race for the first. It does
+     * not fix acquisition order *between* callers: the ordering applies within one
+     * item's candidate search, and a host reserving several items inside one
+     * transaction issues one of these queries per item, so it takes those stock
+     * locks in call order. Two hosts reserving the same items in opposite order
+     * can therefore still deadlock. PostgreSQL detects it and aborts one of them,
+     * so the host sees an error it can retry rather than a number it cannot check.
+     * A host issuing multi-item reservations should expect deadlock errors and
+     * retry the whole transaction. Keep the `orderBy('id')`, and do not reorder by
+     * availability — just do not mistake it for a cross-caller guarantee.
      *
      * On SQLite `lockForUpdate()` compiles to nothing at all — the grammar emits
      * an empty string. That is tolerable rather than correct: SQLite serialises

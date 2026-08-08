@@ -110,6 +110,10 @@ it('refuses the second of two simultaneous reservations rather than promising st
 
     $competitor->awaitLock();
 
+    // The competitor still holds the row, so the attempt below is genuinely
+    // contended. See CompetingWriter::hasCommitted().
+    expect($competitor->hasCommitted())->toBeFalse();
+
     $attempt = fn (): Reservation => $this->reservations->reserve(new ReservationData(
         itemId: $this->itemId,
         jobType: 'work_order',
@@ -156,6 +160,8 @@ it('falls through to the next stock record when a competitor empties the first',
 
     $competitor->awaitLock();
 
+    expect($competitor->hasCommitted())->toBeFalse();
+
     $reservation = $this->reservations->reserve(new ReservationData(
         itemId: $this->itemId,
         jobType: 'work_order',
@@ -199,6 +205,8 @@ it('refuses to consume a reservation another connection is already consuming', f
 
     $competitor->awaitLock();
 
+    expect($competitor->hasCommitted())->toBeFalse();
+
     expect(fn (): StockMovement => $this->reservations->fulfill($reservation))
         ->toThrow(InvalidArgumentException::class, 'Reservation has already been fulfilled.');
 
@@ -210,4 +218,52 @@ it('refuses to consume a reservation another connection is already consuming', f
     expect((float) $stock->quantity)->toBe(40.0)
         ->and((float) $stock->reserved_quantity)->toBe(0.0)
         ->and(StockMovement::query()->where('item_id', $this->itemId)->count())->toBe(0);
+});
+
+it('leaves an expiring hold alone when another connection is already releasing it', function (): void {
+    $location = scratchLocation($this);
+
+    $stock = Stock::factory()
+        ->forItem($this->itemId)
+        ->forLocation($location)
+        ->withQuantity(100)
+        ->withReserved(60)
+        ->create();
+
+    // Past its expiry and still holding stock: exactly what the sweep looks for.
+    $reservation = Reservation::factory()
+        ->forStock($stock)
+        ->withQuantity(60)
+        ->expiresIn(-1)
+        ->reserved()
+        ->create();
+
+    // Another connection is part-way through cancelling this same reservation:
+    // the row is closed and the hold given back, uncommitted.
+    $competitor = CompetingWriter::start(competingWriterPayload([
+        'mode' => 'release',
+        'stock_id' => $stock->id,
+        'reservation_id' => $reservation->id,
+        'quantity' => 60,
+    ]));
+
+    $competitor->awaitLock();
+
+    expect($competitor->hasCommitted())->toBeFalse();
+
+    // The sweep has its own lock, and it is the only thing standing here: the
+    // sweep never goes through the locked re-read in syncFromStorage(), so
+    // without it both this and the release read the reservation as open, both
+    // pass closedState(), and the same sixty units are handed back twice.
+    $expired = $this->reservations->expireOld();
+
+    $competitor->finish();
+
+    $stock->refresh();
+
+    // The hold came back once. Handed back twice it lands at −60: a shelf of 100
+    // with a negative hold against it, and nothing raised.
+    expect((float) $stock->reserved_quantity)->toBe(0.0)
+        ->and($expired)->toBe(0)
+        ->and($reservation->fresh()?->status)->not->toBe('expired');
 });

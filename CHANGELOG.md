@@ -79,10 +79,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`SELECT … FOR UPDATE`), and every closing path locks the reservation as it re-reads it. The
   second caller waits, sees what the first actually did, and is refused — or, when another record
   can still cover the request, is quietly served from that one instead. Reservation locks are always
-  taken before stock locks and always in primary-key order, so callers cannot wait on each other.
+  taken before stock locks, so there is no reservation-stock cycle for two callers to wait around.
   Covered by `tests/Concurrency/ReservationConcurrencyTest.php`, which drives a second process
-  against a committed fixture; on SQLite, where `lockForUpdate()` compiles to nothing, safety rests
-  on that engine's single writer rather than on this SQL.
+  against a committed fixture; each of the three locks was verified by deleting it on its own and
+  watching a test go red. On SQLite, where `lockForUpdate()` compiles to nothing, safety rests on
+  that engine's single writer rather than on this SQL.
 - **A reservation refused because someone else got there first quoted the availability it saw
   before waiting.** The refusal now measures again after the candidate search, and reports a
   shortage rather than a fragmented-stock message when the total no longer covers the request.
@@ -123,6 +124,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cycle-count adjustments have the same shape. `canReserve()` remains advisory by design: a host
   that asks it and then calls `reserve()` can still lose the stock in between — `reserve()` is the
   only safe gate.
+- **Host apps should retry on deadlock, and should set their own `lock_timeout`.** The reservation
+  locking removes the silent miscount, not every way two writers can collide. There is no
+  reservation-stock cycle — reservations are always locked first, and `reserve()` never wants a
+  reservation lock — but stock-stock cycles are still reachable in two places: `expireOld()` racing
+  a fulfilment at a location split across lots, and two hosts reserving the same several items in
+  opposite order inside one transaction. PostgreSQL detects both and aborts one transaction with a
+  deadlock error, so the outcome is a loud, retryable failure rather than a number that has quietly
+  stopped being true. Wrap multi-item and lot-split writes in a retry. Separately, the package
+  imposes no lock wait limit anywhere: a request queued behind `expireOld()` waits indefinitely.
+  Set a `lock_timeout` on the connections that serve requests, sized to the host's own latency
+  budget — the package deliberately does not pick one for you.
 
 ## [0.2.0] - 2026-08-08
 

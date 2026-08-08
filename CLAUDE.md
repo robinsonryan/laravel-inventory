@@ -56,7 +56,7 @@ Composer name: `robinsonryan/laravel-inventory` — a **library**, not an applic
 
 ## The suite is green — and how it got there shapes the code
 
-**530 tests pass** (1415 assertions, ~87 s). `composer quality` exits 0 — `lint:check`, `analyze`,
+**531 tests pass** (1422 assertions, ~80 s). `composer quality` exits 0 — `lint:check`, `analyze`,
 `refactor:check` and `test`, no baselines, no ignore rules, no suppressions. Verified 2026-08-08 on
 branch `fix/reservation-concurrency`.
 
@@ -169,12 +169,20 @@ until you know why.
   shelf of 100 ending up with 120 held against it, silently. Two callers could likewise both fulfil
   one reservation, taking 60 units off a shelf of 100 twice and leaving −20. Three
   `lockForUpdate()` calls close it: on the candidate search in `findAvailableStock()`, on the
-  re-read in `syncFromStorage()`, and on the expiry sweep's candidate list. **The lock order is
-  load-bearing** — reservation before stock, always, and by primary key within each; `reserve()`
-  takes stock without ever wanting a reservation, which is what leaves no cycle. Do not remove the
-  `orderBy('id')` calls thinking they are cosmetic, and do not reorder the candidate search by
-  availability. Note also that `lockForUpdate()` **compiles to an empty string on SQLite**, so a
-  host on SQLite is relying on that engine's single writer, not on this code.
+  re-read in `syncFromStorage()`, and on the expiry sweep's candidate list. Each has its own red
+  test — the sweep's did not at first, which a review caught, and the fourth concurrency test is
+  the answer. **The lock order is load-bearing** — reservation before stock, always. `reserve()`
+  takes stock without ever wanting a reservation, so there is **no reservation-stock cycle**, and
+  that sentence is the whole guarantee: stock-stock cycles are still reachable (a sweep against a
+  fulfilment at a lot-split location, or two hosts reserving the same several items in opposite
+  order), and PostgreSQL resolves those by aborting one side with a deadlock error. A loud
+  retryable failure is the point — silent wrong numbers were the thing this work removed. Do not
+  read `orderBy('id')` as a cross-caller ordering guarantee; it orders one query's candidates, and
+  the docblocks that once claimed more have been corrected. Keep the calls anyway, and do not
+  reorder the candidate search by availability. Note also that `lockForUpdate()` **compiles to an
+  empty string on SQLite**, so a host on SQLite is relying on that engine's single writer, not on
+  this code. The real ordering fix is queued with the unlocked plain stock writes, which owe the
+  same decision for `TransferStock`.
 - **Recording a second cycle count was impossible** — the slug trap above, in `RecordCount`. No test
   had ever recorded more than one count, which is why it survived.
 - **The forecasting fixtures were flinging data ~450 days into the past.**
@@ -307,6 +315,14 @@ the tests deterministic instead of a stopwatch race. Two processes are unavoidab
 inside one, the moment the second connection blocks there is nobody left running to
 commit the first. If you add a concurrency test, extend that class and clean up
 after yourself; if you add an ordinary test, do not.
+
+The handshake has two halves and **both are required**. `awaitLock()` proves the
+competitor has taken its lock before the test starts, and `hasCommitted()` — asserted
+false immediately before the contended call — proves the test reached its own blocking
+statement while that lock was still held. Without the second, a slow test process
+arrives after the competitor let go, runs the uncontended path, passes, and has
+quietly stopped testing concurrency at all. That is a green test proving nothing,
+which is worse than a red one.
 
 `tests/TestCase.php` also fixes the shape of every test run:
 
