@@ -69,6 +69,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Two people reserving the same units at the same moment were both told yes.**
+  `ReservationService::reserve()` chose a stock record and then raised its `reserved_quantity` with
+  nothing holding the record in between, so two simultaneous callers read the same unreserved
+  remainder and each added their hold to it: a shelf of 100 ended up with 120 held against it, and
+  no error was raised anywhere. The same gap let two callers fulfil one reservation — both passed
+  the "still holding stock" guard, both consumed, and 60 units left a shelf of 100 twice, leaving a
+  quantity of −20. The candidate search now locks the record it is about to charge
+  (`SELECT … FOR UPDATE`), and every closing path locks the reservation as it re-reads it. The
+  second caller waits, sees what the first actually did, and is refused — or, when another record
+  can still cover the request, is quietly served from that one instead. Reservation locks are always
+  taken before stock locks and always in primary-key order, so callers cannot wait on each other.
+  Covered by `tests/Concurrency/ReservationConcurrencyTest.php`, which drives a second process
+  against a committed fixture; on SQLite, where `lockForUpdate()` compiles to nothing, safety rests
+  on that engine's single writer rather than on this SQL.
+- **A reservation refused because someone else got there first quoted the availability it saw
+  before waiting.** The refusal now measures again after the candidate search, and reports a
+  shortage rather than a fragmented-stock message when the total no longer covers the request.
 - **The `locations` table could not be created on PostgreSQL.** `SchemaSupport::uuidPrimary()`
   declared the primary key with the fluent `->primary()` column modifier, which Laravel converts to
   a command only at compile time — after every foreign key the migration declared. `locations`
@@ -100,10 +117,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known issues
 
-- **Reservation writes are not concurrency-safe.** `reserve()` checks availability and then
-  increments without locking the stock row, and `fulfill()` re-reads inside its transaction without
-  `lockForUpdate`. Two simultaneous reservations can over-commit the same stock on PostgreSQL or
-  MySQL. Invisible on SQLite, which is what the suite runs on.
+- **Only reservations are concurrency-safe.** `StockService`'s add, remove, transfer and adjust
+  paths still read a stock record, decide, and write without locking it, so two simultaneous
+  removals can each pass the availability check and overdraw the shelf. Purchasing receipts and
+  cycle-count adjustments have the same shape. `canReserve()` remains advisory by design: a host
+  that asks it and then calls `reserve()` can still lose the stock in between — `reserve()` is the
+  only safe gate.
 
 ## [0.2.0] - 2026-08-08
 

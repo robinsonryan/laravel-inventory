@@ -69,7 +69,14 @@ final readonly class ReservationService implements ReservationContract
             $stock = $this->findAvailableStock($data->itemId, $data->quantity, $data->locationId);
 
             if (! $stock instanceof Stock) {
-                throw $this->stockIsTooFragmented($data, $available);
+                // Measure availability again rather than reusing the figure from
+                // the top of this method. Reaching here means either the stock is
+                // spread too thin, or another connection took it while this one
+                // was waiting for the row lock — and in the second case the number
+                // read a moment ago describes a warehouse that no longer exists.
+                // A refusal that quotes it would be exactly the confidently wrong
+                // number the lock is here to prevent.
+                throw $this->refuse($data, $this->stockService->getAvailable($data->itemId, $data->locationId));
             }
 
             /** @var Reservation */
@@ -207,6 +214,20 @@ final readonly class ReservationService implements ReservationContract
     /**
      * Expire old reservations past their expiry date.
      *
+     * The sweep locks every reservation it is about to close, in one statement,
+     * before it touches a single stock row. Two things follow from that. It cannot
+     * race a fulfilment: a reservation being consumed on another connection is
+     * either committed before the lock is granted (and then fails the `whereNull`
+     * re-check, or the `closedState()` guard below) or waits for the sweep to
+     * finish. And it cannot deadlock against one: the sweep never asks for a
+     * reservation while already holding a stock row, so there is no cycle for a
+     * fulfilment — which takes a reservation and then its stock — to complete.
+     * `orderBy('id')` gives two simultaneous sweeps the same acquisition order.
+     *
+     * The cost is honest and worth knowing: a sweep with a large backlog holds
+     * every one of those rows until it commits, and fulfilments of those exact
+     * reservations wait. It is a batch job; run it off the request path.
+     *
      * @return int Number of reservations expired
      */
     public function expireOld(): int
@@ -217,6 +238,8 @@ final readonly class ReservationService implements ReservationContract
                 ->whereNull('cancelled_at')
                 ->whereNotNull('expires_at')
                 ->where('expires_at', '<', Carbon::now())
+                ->orderBy('id')
+                ->lockForUpdate()
                 ->get();
 
             $expired = 0;
@@ -321,6 +344,22 @@ final readonly class ReservationService implements ReservationContract
      * instance of the same row. Deciding from the instance handed in would
      * trust whatever it happened to be loaded with, so every closing path
      * re-reads first.
+     *
+     * The re-read locks the row, which is what makes it a decision rather than a
+     * guess. Re-reading without a lock only widens the window: two callers
+     * fulfilling the same reservation both read it open, both pass the guard, and
+     * both consume — the units leave the shelf twice and the hold is handed back
+     * twice, again with no error raised. `FOR UPDATE` makes the second caller wait
+     * for the first to commit and then read what it wrote, so the guard sees the
+     * reservation already closed and refuses.
+     *
+     * Every caller runs inside `DB::transaction`, which is what gives the lock a
+     * lifetime; a fifth closing path that forgets the transaction would take a
+     * lock and drop it again on the same statement. The lock is on the
+     * reservation only — the stock row it holds is taken later, by the decrement
+     * in `returnHold()`. That order (reservation, then stock) is the same in every
+     * path, and `reserve()` takes the stock row without ever wanting a
+     * reservation, so no two callers can wait on each other.
      */
     private function syncFromStorage(Reservation $reservation): bool
     {
@@ -330,6 +369,7 @@ final readonly class ReservationService implements ReservationContract
 
         $stored = $this->getReservationModel()::query()
             ->whereKey($reservation->getKey())
+            ->lockForUpdate()
             ->first();
 
         if (! $stored instanceof Reservation) {
@@ -368,13 +408,24 @@ final readonly class ReservationService implements ReservationContract
     }
 
     /**
-     * The refusal to raise when the stock exists but sits in more than one place.
+     * The refusal to raise when no single stock record can back the reservation.
      *
-     * Reports the fullest single location by name, because that is what tells a
-     * host app this is a consolidation problem and not a reordering one.
+     * Usually that means the stock exists but sits in more than one place, and
+     * then the refusal reports the fullest single location by name — that is what
+     * tells a host app this is a consolidation problem and not a reordering one.
+     * Two cases are shortages wearing a fragmentation costume, and both say so
+     * instead: no stock record at all, and a total that no longer covers the
+     * request because another connection reserved it first.
+     *
+     * @param  float  $available  measured across every matching record, after the
+     *                            candidate search has finished
      */
-    private function stockIsTooFragmented(ReservationData $data, float $available): CannotReserveException
+    private function refuse(ReservationData $data, float $available): CannotReserveException
     {
+        if ($available < $data->quantity) {
+            return CannotReserveException::notEnoughStock($data->itemId, $data->quantity, $available);
+        }
+
         $largest = $this->largestAvailableStock($data->itemId, $data->locationId);
 
         // No stock record at all means there is nothing to consolidate, so the
@@ -421,13 +472,39 @@ final readonly class ReservationService implements ReservationContract
      * — which runs on PostgreSQL — would stay green without the cast. The cast is
      * here for the host applications that run this package on SQLite, and nothing
      * automated guards it. Treat it as load-bearing anyway.
+     *
+     * The row is locked, and that is the whole reason `reserve()` cannot
+     * over-commit. Selecting a candidate and then raising its `reserved_quantity`
+     * is check-then-act: unlocked, two simultaneous reservations both read the
+     * same unreserved remainder, both add their hold to it, and the warehouse ends
+     * up promising more units than it has — no error anywhere, just a stock row
+     * whose hold exceeds its quantity. `SELECT … FOR UPDATE` closes that window:
+     * the second caller waits for the first to commit, then re-evaluates the
+     * availability predicate against the row the first caller actually left
+     * behind. It either still qualifies, or this returns null and the caller is
+     * refused. (`FOR UPDATE` re-checks the predicate after the wait; that is
+     * PostgreSQL's documented behaviour and what makes the wait meaningful rather
+     * than merely a delay before the same stale answer.)
+     *
+     * `orderBy('id')` is not cosmetic any more. A host application that reserves
+     * several items inside one transaction holds several of these locks at once,
+     * so every caller has to take them in the same sequence or two callers can
+     * each end up holding the row the other is waiting for. Ordering by primary
+     * key gives every caller that same sequence. Do not remove it, and do not
+     * reorder by availability.
+     *
+     * On SQLite `lockForUpdate()` compiles to nothing at all — the grammar emits
+     * an empty string. That is tolerable rather than correct: SQLite serialises
+     * writers itself, so the interleaving cannot arise, but nothing in the SQL
+     * says so. Any host on a third engine should confirm its own semantics.
      */
     private function findAvailableStock(string $itemId, float $quantity, ?string $locationId = null): ?Stock
     {
         $query = $this->getStockModel()::query()
             ->where('item_id', $itemId)
             ->whereRaw('quantity - reserved_quantity >= CAST(? AS DECIMAL(20,4))', [$quantity])
-            ->orderBy('id');
+            ->orderBy('id')
+            ->lockForUpdate();
 
         if ($locationId !== null) {
             $query->where('location_id', $locationId);

@@ -56,9 +56,9 @@ Composer name: `robinsonryan/laravel-inventory` — a **library**, not an applic
 
 ## The suite is green — and how it got there shapes the code
 
-**527 tests pass** (1402 assertions, ~57 s). `composer quality` exits 0 — `lint:check`, `analyze`,
+**530 tests pass** (1415 assertions, ~87 s). `composer quality` exits 0 — `lint:check`, `analyze`,
 `refactor:check` and `test`, no baselines, no ignore rules, no suppressions. Verified 2026-08-08 on
-branch `fix/test-suite-repair`.
+branch `fix/reservation-concurrency`.
 
 It was 134 failures on 480 tests, and the package had never once had its suite executed — no
 `vendor/`, no `composer.lock`, so the first-ever run fatalled on load. Repairing it turned up six
@@ -164,6 +164,17 @@ until you know why.
   inflated available stock — confidently wrong numbers rather than an error. All four closing paths
   now share one `closedState()` predicate and re-read the stored row. That duplication is exactly
   where the gap grew: if you add a fifth path, use the predicate.
+- **Two terminals could reserve the same units, and both be told yes.** `reserve()` picked a stock
+  record and then raised its `reserved_quantity` with nothing holding the record in between — a
+  shelf of 100 ending up with 120 held against it, silently. Two callers could likewise both fulfil
+  one reservation, taking 60 units off a shelf of 100 twice and leaving −20. Three
+  `lockForUpdate()` calls close it: on the candidate search in `findAvailableStock()`, on the
+  re-read in `syncFromStorage()`, and on the expiry sweep's candidate list. **The lock order is
+  load-bearing** — reservation before stock, always, and by primary key within each; `reserve()`
+  takes stock without ever wanting a reservation, which is what leaves no cycle. Do not remove the
+  `orderBy('id')` calls thinking they are cosmetic, and do not reorder the candidate search by
+  availability. Note also that `lockForUpdate()` **compiles to an empty string on SQLite**, so a
+  host on SQLite is relying on that engine's single writer, not on this code.
 - **Recording a second cycle count was impossible** — the slug trap above, in `RecordCount`. No test
   had ever recorded more than one count, which is why it survived.
 - **The forecasting fixtures were flinging data ~450 days into the past.**
@@ -231,9 +242,10 @@ fixing out-of-scope things mid-task.
 Two queued items are big enough that you should know them before planning any
 work, because each one changes what a change to this package means:
 
-- **Reservation writes are not concurrency-safe.** No row locking on the
-  check-then-increment, so two simultaneous reserves over-commit the same stock on
-  PostgreSQL and MySQL. Invisible on SQLite, which is what the suite runs on.
+- **Plain stock writes are still not concurrency-safe.** Reservations are locked
+  now (see below); `AddStock`, `RemoveStock`, `TransferStock` and `AdjustStock`
+  are not. They read a stock record, decide, and save, so two simultaneous
+  removals can each pass the availability check and overdraw the shelf.
 - **Reporting reads five other modules' tables directly**, which is why moving
   categories into taxon broke reports at all.
 
@@ -283,6 +295,19 @@ Because the whole suite shares one database, each test runs inside a
 `RefreshDatabase` transaction and the schema is built once per process. Nothing is
 order-dependent — `vendor/bin/pest --order-by=random` passes.
 
+**One testsuite is exempt, and only one may ever be.** `tests/Concurrency/` runs
+on `Tests\ConcurrencyTestCase`, which overrides `beginDatabaseTransaction()` to do
+nothing, because a race between two connections cannot happen inside a single
+uncommitted transaction — the second connection cannot even see the fixture. Those
+tests commit for real and delete their own rows in `afterEach`, keyed on an item id
+generated per test. `Tests\Support\CompetingWriter` starts a second OS process
+(`competing-writer.php`, plain PDO, no framework) that takes a row lock, signals
+over a file handshake, holds it briefly and commits — that handshake is what makes
+the tests deterministic instead of a stopwatch race. Two processes are unavoidable:
+inside one, the moment the second connection blocks there is nobody left running to
+commit the first. If you add a concurrency test, extend that class and clean up
+after yourself; if you add an ordinary test, do not.
+
 `tests/TestCase.php` also fixes the shape of every test run:
 
 - Providers loaded: taxon, vendor, inventory.
@@ -306,9 +331,10 @@ order-dependent — `vendor/bin/pest --order-by=random` passes.
 **What a green suite still does not prove.** Only the `pgsql` branch of any
 driver-aware code is exercised — `DemandAnalyzer::periodExpression()`'s sqlite and
 mysql branches, and the `CAST` in `ReservationService::findAvailableStock()`, are
-now the *unproven* halves. And every test runs in one transaction on one
-connection, so the concurrency gaps in `QUEUE.md` remain invisible: catching those
-needs a second connection opened by hand.
+now the *unproven* halves — and the `lockForUpdate()` calls are in the same
+position, since SQLite compiles them away entirely. And outside `tests/Concurrency/`
+every test runs in one transaction on one connection, so the stock-write races
+still in `QUEUE.md` remain invisible: catching those means adding to that suite.
 
 ```bash
 ddev composer test
