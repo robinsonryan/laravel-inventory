@@ -3,7 +3,7 @@ type: php
 php_version: "8.3"
 database:
   type: postgres
-  version: "17"
+  version: "18"
 nodejs_version: "22"
 webserver_type: nginx-fpm
 

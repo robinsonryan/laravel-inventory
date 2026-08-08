@@ -220,7 +220,7 @@ and no rework owed. `vendor-pkg` is 3 commits ahead of `v0.1.1`, but all three t
   minimum, so the `^11.0` half could never have been satisfied.
 
 ### ~~The suite runs on SQLite, not the deployment target~~ — RESOLVED 2026-08-08
-- **Resolved by**: moving to the real PostgreSQL 17 in DDEV's `db` service, matching `hey-you`
+- **Resolved by**: moving to the real PostgreSQL 18 in DDEV's `db` service, matching `hey-you`
   (the reference package) and the stack default. It immediately caught a bug that made the
   `locations` table **uncreatable on PostgreSQL** — the primary key was declared with a fluent
   modifier that Laravel emits after foreign keys, and `locations` has a self-referencing key.

@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The DDEV database moved from PostgreSQL 17 to 18**, matching every other Postgres project in
+  this fleet (taxon, hey-you, permixion, four-corners, yikes-hub, ryanbot). 17 was the reason the
+  `uuidv7()` column defaults could not apply.
 - **The test suite runs against real PostgreSQL** (the DDEV `db` service, on its own `testing`
   database created by a `.ddev/config.yaml` post-start hook) instead of in-memory SQLite, matching
   the stack convention. `INVENTORY_TEST_DB_HOST` / `_PORT` / `_DATABASE` / `_USERNAME` / `_PASSWORD`
@@ -62,9 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`DemandAnalyzer::getConsumptionByPeriod()` emitted MySQL-only `DATE_FORMAT()` SQL** in a package
   that runs on PostgreSQL. Replaced with a driver-aware expression (`to_char` on pgsql, `strftime`
   on sqlite, `DATE_FORMAT` elsewhere). Only the pgsql branch is covered by a test — see `QUEUE.md`.
-- **Every migration was unrunnable outside PostgreSQL 18.** All 20 table migrations defaulted their
-  primary key to `DB::raw('uuidv7()')`, a PG18 built-in — so they failed on SQLite, on MySQL, and on
-  the package's own PostgreSQL 17 container. The default is now applied only when the connection
+- **The DDEV database was PostgreSQL 17 while every migration was written for 18.** All 20 table
+  migrations default their primary key to `DB::raw('uuidv7()')`, a PostgreSQL 18 built-in, and every
+  other Postgres project in this fleet runs 18. DDEV is now on 18 and the default is applied for
+  real — that branch had never executed. The default is applied only when the connection
   exposes the function; the `HasUuid7` trait already generates keys in PHP regardless.
 - **A reservation's own hold blocked its own fulfilment.** `fulfill()` consumed the stock before
   returning the hold, and the availability check inside stock removal subtracts

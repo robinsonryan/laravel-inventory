@@ -184,14 +184,22 @@ until you know why.
   three resolved to nothing — a hard fatal at 94 call sites across the suite,
   invisible for as long as the suite had never run. All ten factories now sit under
   `RobinsonRyan\Inventory\Database\Factories\<Module>`; keep new ones there.
-- **Every migration was unrunnable outside PostgreSQL 18.** All 20 create-table
-  migrations defaulted their primary key to `DB::raw('uuidv7()')`, a PG18 built-in —
-  so they failed on SQLite, on MySQL, and on this package's own PostgreSQL 17
-  container. Migrations now call `SchemaSupport::uuidPrimary($table)`, which probes
-  `pg_proc` once and applies the default only where the connection actually provides
-  the function. The `HasUuid7` trait generates keys in PHP regardless, so the
-  database default is only a safety net for non-Eloquent inserts. **Never write
-  `uuidv7()` into a migration directly** — no migration references it today.
+- **The migrations were right; the container was wrong.** All 20 create-table
+  migrations defaulted their primary key to `DB::raw('uuidv7()')`, a PostgreSQL 18
+  built-in, and this package's DDEV was pinned to **17** while every other Postgres
+  project here — taxon, hey-you, permixion, four-corners, yikes-hub, ryanbot — runs
+  18. An earlier session read the resulting failure as a portability bug and made
+  the default conditional. That was treating the symptom: `uuidv7()` was the
+  intended design, and it was being run on the one container that could not provide
+  it. DDEV is now on 18 and the default is applied for real — verified in
+  `information_schema`, and that branch of the code had **never executed** before.
+  `SchemaSupport::uuidPrimary($table)` keeps the `pg_proc` probe, which is still
+  correct for a library: a host on Postgres 16 or MySQL gets PHP-side keys from the
+  `HasUuid7` trait instead. **Never write `uuidv7()` into a migration directly** —
+  go through the helper, which also emits the key *before* any foreign key (see
+  below).
+  **If a migration fails on `uuidv7()`, check the Postgres version before assuming
+  the code is wrong.**
 - **The `locations` table could not be created on PostgreSQL at all.**
   `SchemaSupport::uuidPrimary()` declared the key with the fluent `->primary()`
   column modifier. Laravel turns fluent index modifiers into commands only when the
@@ -264,7 +272,7 @@ Full definition: `imports/package-quality-gate.md`. Skill: `/package-quality`.
 
 ## Testing
 
-Pest 3/4 + Orchestra Testbench. **The suite runs on the real PostgreSQL 17 in
+Pest 3/4 + Orchestra Testbench. **The suite runs on the real PostgreSQL 18 in
 DDEV's `db` service**, on a database of its own named `testing` that
 `.ddev/config.yaml`'s post-start hook creates. It used to run on in-memory SQLite;
 that hid a live defect (the reservation availability lookup below) and left every
