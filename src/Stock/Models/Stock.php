@@ -9,9 +9,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Concerns\BelongsToTenant;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
-use RobinsonRyan\Inventory\Stock\Database\Factories\StockFactory;
+use RobinsonRyan\Inventory\Database\Factories\Stock\StockFactory;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 
 /**
  * @property string $id
@@ -25,7 +27,7 @@ use RobinsonRyan\Inventory\Stock\Database\Factories\StockFactory;
  * @property string|null $lot_number
  * @property string|null $serial_number
  * @property \Illuminate\Support\Carbon|null $expiry_date
- * @property array|null $metadata
+ * @property array<string, mixed>|null $metadata
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read Model $item
@@ -36,7 +38,10 @@ use RobinsonRyan\Inventory\Stock\Database\Factories\StockFactory;
 final class Stock extends Model
 {
     use BelongsToTenant;
+
+    /** @use HasFactory<StockFactory> */
     use HasFactory;
+
     use HasUuid7;
 
     protected $fillable = [
@@ -85,7 +90,7 @@ final class Stock extends Model
      */
     public function item(): BelongsTo
     {
-        $itemModel = config('inventory.models.item');
+        $itemModel = ModelResolver::resolveAny('item', Item::class);
 
         return $this->belongsTo($itemModel, 'item_id');
     }
@@ -96,8 +101,8 @@ final class Stock extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.location', Location::class),
-            'location_id'
+            ModelResolver::resolve('location', Location::class),
+            'location_id',
         );
     }
 
@@ -107,9 +112,9 @@ final class Stock extends Model
     public function movements(): HasMany
     {
         return $this->hasMany(
-            config('inventory.models.stock_movement', StockMovement::class),
+            ModelResolver::resolve('stock_movement', StockMovement::class),
             'item_id',
-            'item_id'
+            'item_id',
         )->where('to_location_id', $this->location_id)
             ->orWhere('from_location_id', $this->location_id);
     }
@@ -120,8 +125,8 @@ final class Stock extends Model
     public function reservations(): HasMany
     {
         return $this->hasMany(
-            config('inventory.models.reservation', Reservation::class),
-            'stock_id'
+            ModelResolver::resolve('reservation', Reservation::class),
+            'stock_id',
         );
     }
 

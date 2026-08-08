@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
 use RobinsonRyan\Inventory\Reconciliation\Models\CycleCount;
 use RobinsonRyan\Inventory\Reconciliation\Models\CycleCountLine;
-use RobinsonRyan\Inventory\Reconciliation\TagDefinitions\CycleCountStatusDefinition;
 
 final class RecordCount
 {
@@ -18,7 +17,7 @@ final class RecordCount
     public function execute(
         CycleCountLine $line,
         float $countedQuantity,
-        ?string $notes = null
+        ?string $notes = null,
     ): CycleCountLine {
         // Validate the cycle count is in a countable state
         $cycleCount = $line->cycleCount;
@@ -35,8 +34,8 @@ final class RecordCount
         $variance = $countedQuantity - (float) $line->expected_quantity;
 
         // Update the line
-        $line->counted_quantity = $countedQuantity;
-        $line->variance = $variance;
+        $line->counted_quantity = (string) $countedQuantity;
+        $line->variance = (string) $variance;
         $line->counted_at = now();
         $line->counted_by = $this->getActorId();
 
@@ -46,7 +45,7 @@ final class RecordCount
 
         $line->save();
 
-        return $line->fresh(['cycleCount', 'item', 'stock']);
+        return $line->fresh(['cycleCount', 'item', 'stock']) ?? $line;
     }
 
     /**
@@ -60,8 +59,8 @@ final class RecordCount
             throw new InvalidArgumentException(
                 sprintf(
                     'Cannot record count for cycle count in status "%s". Count must be in "draft" or "in_progress" status.',
-                    $cycleCount->status
-                )
+                    $cycleCount->status,
+                ),
             );
         }
     }

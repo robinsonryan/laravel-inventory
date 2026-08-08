@@ -12,14 +12,14 @@ use RobinsonRyan\Inventory\Stock\Models\Stock;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 use RobinsonRyan\Inventory\Stock\Services\StockService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->stockService = App::make(StockService::class);
     $this->location = Location::factory()->warehouse()->create();
-    $this->itemId = (string) \Symfony\Component\Uid\Uuid::v7();
+    $this->itemId = (string) Symfony\Component\Uid\Uuid::v7();
 });
 
-describe('Stock Model', function () {
-    it('creates a stock record', function () {
+describe('Stock Model', function (): void {
+    it('creates a stock record', function (): void {
         $stock = Stock::factory()
             ->forItem($this->itemId)
             ->forLocation($this->location)
@@ -34,7 +34,7 @@ describe('Stock Model', function () {
             ->and((float) $stock->cost_basis)->toBe(25.50);
     });
 
-    it('calculates available quantity', function () {
+    it('calculates available quantity', function (): void {
         $stock = Stock::factory()
             ->forItem($this->itemId)
             ->forLocation($this->location)
@@ -45,7 +45,7 @@ describe('Stock Model', function () {
         expect($stock->available_quantity)->toBe(70.0);
     });
 
-    it('handles lot numbers', function () {
+    it('handles lot numbers', function (): void {
         $stock = Stock::factory()
             ->forItem($this->itemId)
             ->forLocation($this->location)
@@ -55,7 +55,7 @@ describe('Stock Model', function () {
         expect($stock->lot_number)->toBe('LOT-2026-001');
     });
 
-    it('handles serial numbers', function () {
+    it('handles serial numbers', function (): void {
         $stock = Stock::factory()
             ->forItem($this->itemId)
             ->forLocation($this->location)
@@ -66,7 +66,7 @@ describe('Stock Model', function () {
             ->and((float) $stock->quantity)->toBe(1.0);
     });
 
-    it('handles expiry dates', function () {
+    it('handles expiry dates', function (): void {
         $expiryDate = now()->addMonths(6);
 
         $stock = Stock::factory()
@@ -79,8 +79,8 @@ describe('Stock Model', function () {
     });
 });
 
-describe('StockService - Add Stock', function () {
-    it('adds stock to a location', function () {
+describe('StockService - Add Stock', function (): void {
+    it('adds stock to a location', function (): void {
         $data = new AddStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
@@ -99,7 +99,7 @@ describe('StockService - Add Stock', function () {
         expect($quantity)->toBe(50.0);
     });
 
-    it('tracks cost basis with weighted average', function () {
+    it('tracks cost basis with weighted average', function (): void {
         // Add first batch at $10
         $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
@@ -127,8 +127,8 @@ describe('StockService - Add Stock', function () {
     });
 });
 
-describe('StockService - Remove Stock', function () {
-    it('removes stock from a location', function () {
+describe('StockService - Remove Stock', function (): void {
+    it('removes stock from a location', function (): void {
         // First add some stock
         $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
@@ -151,7 +151,7 @@ describe('StockService - Remove Stock', function () {
         expect($quantity)->toBe(70.0);
     });
 
-    it('prevents negative stock by default', function () {
+    it('prevents negative stock by default', function (): void {
         $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
@@ -165,7 +165,7 @@ describe('StockService - Remove Stock', function () {
         )))->toThrow(InvalidArgumentException::class);
     });
 
-    it('allows negative stock when configured', function () {
+    it('allows negative stock when configured', function (): void {
         config(['inventory.rules.allow_negative_stock' => true]);
 
         $this->stockService->addStock(new AddStockData(
@@ -187,8 +187,8 @@ describe('StockService - Remove Stock', function () {
     });
 });
 
-describe('StockService - Transfer Stock', function () {
-    it('transfers stock between locations', function () {
+describe('StockService - Transfer Stock', function (): void {
+    it('transfers stock between locations', function (): void {
         $location2 = Location::factory()->warehouse()->create();
 
         $this->stockService->addStock(new AddStockData(
@@ -214,7 +214,7 @@ describe('StockService - Transfer Stock', function () {
         expect($this->stockService->getQuantity($this->itemId, $location2->id))->toBe(40.0);
     });
 
-    it('preserves cost basis on transfer', function () {
+    it('preserves cost basis on transfer', function (): void {
         $location2 = Location::factory()->warehouse()->create();
 
         $this->stockService->addStock(new AddStockData(
@@ -241,8 +241,8 @@ describe('StockService - Transfer Stock', function () {
     });
 });
 
-describe('StockService - Adjust Stock', function () {
-    it('adjusts stock quantity', function () {
+describe('StockService - Adjust Stock', function (): void {
+    it('adjusts stock quantity', function (): void {
         $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
@@ -264,7 +264,7 @@ describe('StockService - Adjust Stock', function () {
         expect($quantity)->toBe(85.0);
     });
 
-    it('handles positive adjustments', function () {
+    it('handles positive adjustments', function (): void {
         $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
@@ -287,8 +287,8 @@ describe('StockService - Adjust Stock', function () {
     });
 });
 
-describe('StockService - Query Methods', function () {
-    it('gets stock by item across all locations', function () {
+describe('StockService - Query Methods', function (): void {
+    it('gets stock by item across all locations', function (): void {
         $location2 = Location::factory()->warehouse()->create();
 
         $this->stockService->addStock(new AddStockData(
@@ -309,8 +309,8 @@ describe('StockService - Query Methods', function () {
         expect($this->stockService->getQuantity($this->itemId))->toBe(80.0);
     });
 
-    it('gets stock by location', function () {
-        $itemId2 = (string) \Symfony\Component\Uid\Uuid::v7();
+    it('gets stock by location', function (): void {
+        $itemId2 = (string) Symfony\Component\Uid\Uuid::v7();
 
         $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
@@ -329,7 +329,7 @@ describe('StockService - Query Methods', function () {
         expect($stocks)->toHaveCount(2);
     });
 
-    it('gets available quantity excluding reservations', function () {
+    it('gets available quantity excluding reservations', function (): void {
         $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,

@@ -19,6 +19,9 @@ trait HasUuid7
         $this->usesUniqueIds = true;
     }
 
+    /**
+     * @return array<int, string>
+     */
     public function uniqueIds(): array
     {
         return [$this->getKeyName()];

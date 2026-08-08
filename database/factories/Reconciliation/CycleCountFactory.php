@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Database\Factories\Reconciliation;
 
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use RobinsonRyan\Inventory\Reconciliation\Models\CycleCount;
 use RobinsonRyan\Inventory\Stock\Models\Location;
@@ -93,7 +94,7 @@ final class CycleCountFactory extends Factory
         ]);
     }
 
-    public function scheduled(\DateTimeInterface $date): self
+    public function scheduled(DateTimeInterface $date): self
     {
         return $this->state(fn (): array => [
             'scheduled_date' => $date,

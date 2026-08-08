@@ -8,10 +8,10 @@ use InvalidArgumentException;
 use RobinsonRyan\Inventory\Reconciliation\Models\CycleCount;
 use RobinsonRyan\Inventory\Reconciliation\Services\ReconciliationService;
 
-final class CancelCycleCount
+final readonly class CancelCycleCount
 {
     public function __construct(
-        private readonly ReconciliationService $service,
+        private ReconciliationService $service,
     ) {}
 
     /**
@@ -24,8 +24,8 @@ final class CancelCycleCount
             throw new InvalidArgumentException(
                 sprintf(
                     'Cannot cancel cycle count in status "%s". Only open counts can be cancelled.',
-                    $count->status
-                )
+                    $count->status,
+                ),
             );
         }
 
@@ -40,6 +40,6 @@ final class CancelCycleCount
 
         $count->save();
 
-        return $count->fresh(['lines', 'location']);
+        return $count->fresh(['lines', 'location']) ?? $count;
     }
 }

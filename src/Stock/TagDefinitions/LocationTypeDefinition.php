@@ -19,7 +19,7 @@ final class LocationTypeDefinition extends TagDefinition
     /**
      * @var list<string>
      */
-    public const array DEFAULT_VALUES = [
+    public const DEFAULT_VALUES = [
         'warehouse',
         'bin',
         'shelf',

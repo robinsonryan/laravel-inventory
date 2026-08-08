@@ -9,21 +9,21 @@ use RobinsonRyan\Inventory\Reconciliation\Services\ReconciliationService;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->service = App::make(ReconciliationService::class);
     $this->location = Location::factory()->create();
 });
 
-describe('ReconciliationService', function () {
-    describe('generateCountNumber', function () {
-        it('generates count number with correct format', function () {
+describe('ReconciliationService', function (): void {
+    describe('generateCountNumber', function (): void {
+        it('generates count number with correct format', function (): void {
             $countNumber = $this->service->generateCountNumber();
 
             expect($countNumber)->toStartWith('CC-')
                 ->and($countNumber)->toMatch('/^CC-\d{8}-\d{4}$/');
         });
 
-        it('increments sequence for same date', function () {
+        it('increments sequence for same date', function (): void {
             // Create first count
             CycleCount::factory()
                 ->forLocation($this->location)
@@ -36,8 +36,8 @@ describe('ReconciliationService', function () {
             expect($countNumber)->toEndWith('-0002');
         });
 
-        it('respects tenant isolation', function () {
-            $tenantId = (string) \Symfony\Component\Uid\Uuid::v7();
+        it('respects tenant isolation', function (): void {
+            $tenantId = (string) Symfony\Component\Uid\Uuid::v7();
 
             // Create count for tenant
             CycleCount::factory()
@@ -51,14 +51,14 @@ describe('ReconciliationService', function () {
             expect($countNumber)->toEndWith('-0002');
 
             // Get number for different tenant (should be -0001)
-            $otherTenantId = (string) \Symfony\Component\Uid\Uuid::v7();
+            $otherTenantId = (string) Symfony\Component\Uid\Uuid::v7();
             $otherCountNumber = $this->service->generateCountNumber($otherTenantId);
             expect($otherCountNumber)->toEndWith('-0001');
         });
     });
 
-    describe('getItemsToCount', function () {
-        it('returns stock records with positive quantity', function () {
+    describe('getItemsToCount', function (): void {
+        it('returns stock records with positive quantity', function (): void {
             $item = Item::factory()->create();
             Stock::factory()
                 ->forItem($item->id)
@@ -72,7 +72,7 @@ describe('ReconciliationService', function () {
                 ->and((float) $items->first()->quantity)->toBe(50.0);
         });
 
-        it('excludes zero quantity stock', function () {
+        it('excludes zero quantity stock', function (): void {
             $item = Item::factory()->create();
             Stock::factory()
                 ->forItem($item->id)
@@ -85,7 +85,7 @@ describe('ReconciliationService', function () {
             expect($items)->toHaveCount(0);
         });
 
-        it('excludes negative quantity stock', function () {
+        it('excludes negative quantity stock', function (): void {
             $item = Item::factory()->create();
             Stock::factory()
                 ->forItem($item->id)
@@ -98,7 +98,7 @@ describe('ReconciliationService', function () {
             expect($items)->toHaveCount(0);
         });
 
-        it('eager loads item relationship', function () {
+        it('eager loads item relationship', function (): void {
             $item = Item::factory()->create();
             Stock::factory()
                 ->forItem($item->id)
@@ -112,8 +112,8 @@ describe('ReconciliationService', function () {
         });
     });
 
-    describe('calculateVarianceValue', function () {
-        it('calculates total variance value using cost basis', function () {
+    describe('calculateVarianceValue', function (): void {
+        it('calculates total variance value using cost basis', function (): void {
             $item = Item::factory()->create();
             $stock = Stock::factory()
                 ->forItem($item->id)
@@ -142,7 +142,7 @@ describe('ReconciliationService', function () {
             expect($value)->toBe(-250.0); // -10 units * $25 cost
         });
 
-        it('handles multiple lines', function () {
+        it('handles multiple lines', function (): void {
             $item1 = Item::factory()->create();
             $stock1 = Stock::factory()
                 ->forItem($item1->id)
@@ -190,7 +190,7 @@ describe('ReconciliationService', function () {
             expect($value)->toBe(50.0);
         });
 
-        it('returns zero for no variances', function () {
+        it('returns zero for no variances', function (): void {
             $count = CycleCount::factory()
                 ->forLocation($this->location)
                 ->pending()
@@ -202,8 +202,8 @@ describe('ReconciliationService', function () {
         });
     });
 
-    describe('canApprove', function () {
-        it('returns true for pending fully counted', function () {
+    describe('canApprove', function (): void {
+        it('returns true for pending fully counted', function (): void {
             $count = CycleCount::factory()
                 ->forLocation($this->location)
                 ->pending()
@@ -222,7 +222,7 @@ describe('ReconciliationService', function () {
             expect($this->service->canApprove($count))->toBeTrue();
         });
 
-        it('returns false for non-pending status', function () {
+        it('returns false for non-pending status', function (): void {
             $count = CycleCount::factory()
                 ->forLocation($this->location)
                 ->draft()
@@ -231,7 +231,7 @@ describe('ReconciliationService', function () {
             expect($this->service->canApprove($count))->toBeFalse();
         });
 
-        it('returns false when not fully counted', function () {
+        it('returns false when not fully counted', function (): void {
             $count = CycleCount::factory()
                 ->forLocation($this->location)
                 ->pending()
@@ -248,8 +248,8 @@ describe('ReconciliationService', function () {
         });
     });
 
-    describe('canComplete', function () {
-        it('returns true for in_progress fully counted', function () {
+    describe('canComplete', function (): void {
+        it('returns true for in_progress fully counted', function (): void {
             $count = CycleCount::factory()
                 ->forLocation($this->location)
                 ->inProgress()
@@ -268,7 +268,7 @@ describe('ReconciliationService', function () {
             expect($this->service->canComplete($count))->toBeTrue();
         });
 
-        it('returns false for non-in_progress status', function () {
+        it('returns false for non-in_progress status', function (): void {
             $count = CycleCount::factory()
                 ->forLocation($this->location)
                 ->draft()
@@ -278,8 +278,8 @@ describe('ReconciliationService', function () {
         });
     });
 
-    describe('canCancel', function () {
-        it('returns true for open statuses', function () {
+    describe('canCancel', function (): void {
+        it('returns true for open statuses', function (): void {
             $draft = CycleCount::factory()
                 ->forLocation($this->location)
                 ->draft()
@@ -300,7 +300,7 @@ describe('ReconciliationService', function () {
                 ->and($this->service->canCancel($pending))->toBeTrue();
         });
 
-        it('returns false for terminal statuses', function () {
+        it('returns false for terminal statuses', function (): void {
             $approved = CycleCount::factory()
                 ->forLocation($this->location)
                 ->approved()
@@ -316,8 +316,8 @@ describe('ReconciliationService', function () {
         });
     });
 
-    describe('getLinesWithVariances', function () {
-        it('returns only lines with non-zero variance', function () {
+    describe('getLinesWithVariances', function (): void {
+        it('returns only lines with non-zero variance', function (): void {
             $count = CycleCount::factory()
                 ->forLocation($this->location)
                 ->pending()

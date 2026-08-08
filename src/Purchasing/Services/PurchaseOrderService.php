@@ -52,7 +52,7 @@ final class PurchaseOrderService
      */
     public function isFullyReceived(PurchaseOrder $po): bool
     {
-        return $po->lines->every(fn (PurchaseOrderLine $line) => $line->isFullyReceived());
+        return $po->lines->every(fn (PurchaseOrderLine $line): bool => $line->isFullyReceived());
     }
 
     /**
@@ -60,7 +60,7 @@ final class PurchaseOrderService
      */
     public function hasReceivedLines(PurchaseOrder $po): bool
     {
-        return $po->lines->contains(fn (PurchaseOrderLine $line) => (float) $line->quantity_received > 0);
+        return $po->lines->contains(fn (PurchaseOrderLine $line): bool => (float) $line->quantity_received > 0);
     }
 
     /**
@@ -72,7 +72,7 @@ final class PurchaseOrderService
     {
         return $this->getPurchaseOrderModel()::query()
             ->where('vendor_id', $vendorId)
-            ->withTagIn(PurchaseOrderStatusDefinition::$slug, PurchaseOrderStatusDefinition::OPEN)
+            ->withAnyTagIn(PurchaseOrderStatusDefinition::$slug, PurchaseOrderStatusDefinition::OPEN)
             ->with('lines')
             ->orderBy('order_date', 'desc')
             ->get();
@@ -85,7 +85,7 @@ final class PurchaseOrderService
      */
     public function getPendingLines(PurchaseOrder $po): Collection
     {
-        return $po->lines->filter(fn (PurchaseOrderLine $line) => ! $line->isFullyReceived());
+        return $po->lines->filter(fn (PurchaseOrderLine $line): bool => ! $line->isFullyReceived());
     }
 
     /**

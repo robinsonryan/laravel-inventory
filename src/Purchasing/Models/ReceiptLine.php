@@ -10,6 +10,7 @@ use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 
 /**
  * @property string $id
@@ -62,7 +63,7 @@ final class ReceiptLine extends Model
     {
         return $this->belongsTo(
             Receipt::class,
-            'receipt_id'
+            'receipt_id',
         );
     }
 
@@ -72,8 +73,8 @@ final class ReceiptLine extends Model
     public function purchaseOrderLine(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.purchase_order_line', PurchaseOrderLine::class),
-            'purchase_order_line_id'
+            ModelResolver::resolve('purchase_order_line', PurchaseOrderLine::class),
+            'purchase_order_line_id',
         );
     }
 
@@ -83,8 +84,8 @@ final class ReceiptLine extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.item', Item::class),
-            'item_id'
+            ModelResolver::resolveAny('item', Item::class),
+            'item_id',
         );
     }
 
@@ -94,8 +95,8 @@ final class ReceiptLine extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.location', Location::class),
-            'location_id'
+            ModelResolver::resolve('location', Location::class),
+            'location_id',
         );
     }
 
@@ -105,8 +106,8 @@ final class ReceiptLine extends Model
     public function stockMovement(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.stock_movement', StockMovement::class),
-            'stock_movement_id'
+            ModelResolver::resolve('stock_movement', StockMovement::class),
+            'stock_movement_id',
         );
     }
 }

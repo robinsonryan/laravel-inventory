@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace RobinsonRyan\Inventory\Stock\Database\Factories;
+namespace RobinsonRyan\Inventory\Database\Factories\Stock;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\Factory;

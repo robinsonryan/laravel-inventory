@@ -6,6 +6,9 @@ namespace RobinsonRyan\Inventory\Stock\Data;
 
 final readonly class RemoveStockData
 {
+    /**
+     * @param  array<string, mixed>|null  $metadata
+     */
     public function __construct(
         public string $itemId,
         public string $locationId,
@@ -54,6 +57,6 @@ final readonly class RemoveStockData
             'serial_number' => $this->serialNumber,
             'notes' => $this->notes,
             'metadata' => $this->metadata,
-        ], fn ($value) => $value !== null);
+        ], fn (float|string|array|null $value): bool => $value !== null);
     }
 }

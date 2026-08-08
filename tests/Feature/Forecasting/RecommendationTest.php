@@ -11,15 +11,15 @@ use RobinsonRyan\Inventory\Stock\Data\AddStockData;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Services\StockService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->generateRecommendations = App::make(GenerateRecommendations::class);
     $this->dismissRecommendation = App::make(DismissRecommendation::class);
     $this->stockService = App::make(StockService::class);
     $this->location = Location::factory()->warehouse()->create();
 });
 
-describe('ReorderRecommendation Model', function () {
-    it('creates recommendation', function () {
+describe('ReorderRecommendation Model', function (): void {
+    it('creates recommendation', function (): void {
         $item = Item::factory()->create();
 
         $recommendation = ReorderRecommendation::factory()
@@ -34,7 +34,7 @@ describe('ReorderRecommendation Model', function () {
             ->and($recommendation->isDismissed())->toBeFalse();
     });
 
-    it('loads item relationship', function () {
+    it('loads item relationship', function (): void {
         $item = Item::factory()->create(['name' => 'Test Part']);
 
         $recommendation = ReorderRecommendation::factory()
@@ -48,8 +48,8 @@ describe('ReorderRecommendation Model', function () {
     });
 });
 
-describe('GenerateRecommendations Action', function () {
-    it('generates recommendations for items below reorder point', function () {
+describe('GenerateRecommendations Action', function (): void {
+    it('generates recommendations for items below reorder point', function (): void {
         // Create items below reorder point
         $item1 = Item::factory()->create([
             'min_stock_level' => 100,
@@ -77,7 +77,7 @@ describe('GenerateRecommendations Action', function () {
         expect($recommendations)->toHaveCount(2);
     });
 
-    it('generates recommendations for specific items only', function () {
+    it('generates recommendations for specific items only', function (): void {
         $item1 = Item::factory()->create([
             'min_stock_level' => 100,
             'is_active' => true,
@@ -106,8 +106,8 @@ describe('GenerateRecommendations Action', function () {
     });
 });
 
-describe('DismissRecommendation Action', function () {
-    it('dismisses recommendation', function () {
+describe('DismissRecommendation Action', function (): void {
+    it('dismisses recommendation', function (): void {
         $item = Item::factory()->create();
 
         $recommendation = ReorderRecommendation::factory()
@@ -121,9 +121,9 @@ describe('DismissRecommendation Action', function () {
             ->and($dismissed->dismissed_at)->not->toBeNull();
     });
 
-    it('throws exception when dismissing already actioned recommendation', function () {
+    it('throws exception when dismissing already actioned recommendation', function (): void {
         $item = Item::factory()->create();
-        $poId = (string) \Symfony\Component\Uid\Uuid::v7();
+        $poId = (string) Symfony\Component\Uid\Uuid::v7();
 
         $recommendation = ReorderRecommendation::factory()
             ->forItem($item->id)
@@ -131,10 +131,10 @@ describe('DismissRecommendation Action', function () {
             ->create();
 
         expect(fn () => $this->dismissRecommendation->execute($recommendation))
-            ->toThrow(\InvalidArgumentException::class);
+            ->toThrow(InvalidArgumentException::class);
     });
 
-    it('throws exception when dismissing already dismissed recommendation', function () {
+    it('throws exception when dismissing already dismissed recommendation', function (): void {
         $item = Item::factory()->create();
 
         $recommendation = ReorderRecommendation::factory()
@@ -143,12 +143,12 @@ describe('DismissRecommendation Action', function () {
             ->create();
 
         expect(fn () => $this->dismissRecommendation->execute($recommendation))
-            ->toThrow(\InvalidArgumentException::class);
+            ->toThrow(InvalidArgumentException::class);
     });
 });
 
-describe('ReorderRecommendation Status Methods', function () {
-    it('identifies pending recommendations', function () {
+describe('ReorderRecommendation Status Methods', function (): void {
+    it('identifies pending recommendations', function (): void {
         $item = Item::factory()->create();
 
         $pending = ReorderRecommendation::factory()
@@ -161,9 +161,9 @@ describe('ReorderRecommendation Status Methods', function () {
             ->and($pending->isDismissed())->toBeFalse();
     });
 
-    it('identifies actioned recommendations', function () {
+    it('identifies actioned recommendations', function (): void {
         $item = Item::factory()->create();
-        $poId = (string) \Symfony\Component\Uid\Uuid::v7();
+        $poId = (string) Symfony\Component\Uid\Uuid::v7();
 
         $actioned = ReorderRecommendation::factory()
             ->forItem($item->id)
@@ -175,7 +175,7 @@ describe('ReorderRecommendation Status Methods', function () {
             ->and($actioned->isDismissed())->toBeFalse();
     });
 
-    it('identifies dismissed recommendations', function () {
+    it('identifies dismissed recommendations', function (): void {
         $item = Item::factory()->create();
 
         $dismissed = ReorderRecommendation::factory()

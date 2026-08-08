@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Carbon\Carbon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\App;
 use RobinsonRyan\Inventory\Stock\Data\AddStockData;
 use RobinsonRyan\Inventory\Stock\Data\ReservationData;
@@ -14,11 +14,11 @@ use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 use RobinsonRyan\Inventory\Stock\Services\StockService;
 use RobinsonRyan\Inventory\Stock\TagDefinitions\ReservationStatusDefinition;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->stockService = App::make(StockService::class);
     $this->reservationService = App::make(ReservationService::class);
     $this->location = Location::factory()->warehouse()->create();
-    $this->itemId = (string) \Symfony\Component\Uid\Uuid::v7();
+    $this->itemId = (string) Symfony\Component\Uid\Uuid::v7();
 
     // Add initial stock
     $this->stockService->addStock(new AddStockData(
@@ -29,8 +29,8 @@ beforeEach(function () {
     ));
 });
 
-describe('Reservation Model', function () {
-    it('creates a reservation', function () {
+describe('Reservation Model', function (): void {
+    it('creates a reservation', function (): void {
         $reservation = Reservation::factory()
             ->forItem($this->itemId)
             ->forLocation($this->location)
@@ -46,7 +46,7 @@ describe('Reservation Model', function () {
             ->and($reservation->job_id)->toBe('WO-001');
     });
 
-    it('has reservation status states', function () {
+    it('has reservation status states', function (): void {
         $pending = Reservation::factory()->forItem($this->itemId)->pending()->create();
         expect($pending->status)->toBe('pending');
 
@@ -69,8 +69,8 @@ describe('Reservation Model', function () {
     });
 });
 
-describe('ReservationService - Create Reservations', function () {
-    it('creates a reservation and updates stock', function () {
+describe('ReservationService - Create Reservations', function (): void {
+    it('creates a reservation and updates stock', function (): void {
         $data = new ReservationData(
             itemId: $this->itemId,
             jobType: 'work_order',
@@ -98,7 +98,7 @@ describe('ReservationService - Create Reservations', function () {
         expect($this->stockService->getAvailable($this->itemId, $this->location->id))->toBe(75.0);
     });
 
-    it('reserves available stock only', function () {
+    it('reserves available stock only', function (): void {
         // First reservation
         $this->reservationService->reserve(new ReservationData(
             itemId: $this->itemId,
@@ -121,7 +121,7 @@ describe('ReservationService - Create Reservations', function () {
         expect($this->stockService->getAvailable($this->itemId, $this->location->id))->toBe(10.0);
     });
 
-    it('prevents over-reservation', function () {
+    it('prevents over-reservation', function (): void {
         expect(fn () => $this->reservationService->reserve(new ReservationData(
             itemId: $this->itemId,
             jobType: 'work_order',
@@ -132,8 +132,8 @@ describe('ReservationService - Create Reservations', function () {
     });
 });
 
-describe('ReservationService - Fulfill Reservations', function () {
-    it('fulfills a reservation', function () {
+describe('ReservationService - Fulfill Reservations', function (): void {
+    it('fulfills a reservation', function (): void {
         $reservation = $this->reservationService->reserve(new ReservationData(
             itemId: $this->itemId,
             jobType: 'work_order',
@@ -158,7 +158,7 @@ describe('ReservationService - Fulfill Reservations', function () {
         expect($this->stockService->getAvailable($this->itemId, $this->location->id))->toBe(75.0);
     });
 
-    it('partially fulfills a reservation', function () {
+    it('partially fulfills a reservation', function (): void {
         $reservation = $this->reservationService->reserve(new ReservationData(
             itemId: $this->itemId,
             jobType: 'work_order',
@@ -187,8 +187,8 @@ describe('ReservationService - Fulfill Reservations', function () {
     });
 });
 
-describe('ReservationService - Release Reservations', function () {
-    it('releases a reservation', function () {
+describe('ReservationService - Release Reservations', function (): void {
+    it('releases a reservation', function (): void {
         $reservation = $this->reservationService->reserve(new ReservationData(
             itemId: $this->itemId,
             jobType: 'work_order',
@@ -209,8 +209,8 @@ describe('ReservationService - Release Reservations', function () {
     });
 });
 
-describe('ReservationService - Expire Reservations', function () {
-    it('expires old reservations', function () {
+describe('ReservationService - Expire Reservations', function (): void {
+    it('expires old reservations', function (): void {
         // Create an expired reservation manually
         $reservation = $this->reservationService->reserve(new ReservationData(
             itemId: $this->itemId,
@@ -237,8 +237,8 @@ describe('ReservationService - Expire Reservations', function () {
     });
 });
 
-describe('ReservationService - Query Methods', function () {
-    it('gets reservations for a job', function () {
+describe('ReservationService - Query Methods', function (): void {
+    it('gets reservations for a job', function (): void {
         $this->reservationService->reserve(new ReservationData(
             itemId: $this->itemId,
             jobType: 'work_order',
@@ -247,7 +247,7 @@ describe('ReservationService - Query Methods', function () {
             locationId: $this->location->id,
         ));
 
-        $itemId2 = (string) \Symfony\Component\Uid\Uuid::v7();
+        $itemId2 = (string) Symfony\Component\Uid\Uuid::v7();
         $this->stockService->addStock(new AddStockData(
             itemId: $itemId2,
             locationId: $this->location->id,
@@ -267,7 +267,7 @@ describe('ReservationService - Query Methods', function () {
         expect($reservations)->toHaveCount(2);
     });
 
-    it('checks if item can be reserved', function () {
+    it('checks if item can be reserved', function (): void {
         expect($this->reservationService->canReserve($this->itemId, 50, $this->location->id))->toBeTrue();
         expect($this->reservationService->canReserve($this->itemId, 100, $this->location->id))->toBeTrue();
         expect($this->reservationService->canReserve($this->itemId, 150, $this->location->id))->toBeFalse();
@@ -286,24 +286,24 @@ describe('ReservationService - Query Methods', function () {
     });
 });
 
-describe('ReservationStatusDefinition', function () {
-    it('has correct slug', function () {
+describe('ReservationStatusDefinition', function (): void {
+    it('has correct slug', function (): void {
         expect(ReservationStatusDefinition::$slug)->toBe('reservation-status');
     });
 
-    it('has correct name', function () {
+    it('has correct name', function (): void {
         expect(ReservationStatusDefinition::$name)->toBe('Reservation Status');
     });
 
-    it('is single select', function () {
+    it('is single select', function (): void {
         expect(ReservationStatusDefinition::$singleSelect)->toBeTrue();
     });
 
-    it('is global', function () {
+    it('is global', function (): void {
         expect(ReservationStatusDefinition::$global)->toBeTrue();
     });
 
-    it('has expected default values', function () {
+    it('has expected default values', function (): void {
         expect(ReservationStatusDefinition::DEFAULT_VALUES)
             ->toContain('pending')
             ->toContain('reserved')

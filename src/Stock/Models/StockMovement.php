@@ -6,10 +6,12 @@ namespace RobinsonRyan\Inventory\Stock\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Concerns\BelongsToTenant;
 use RobinsonRyan\Inventory\Concerns\HasImmutableAuditTrail;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Stock\TagDefinitions\MovementTypeDefinition;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 use RobinsonRyan\Taxon\HasTags;
 
 /**
@@ -27,9 +29,9 @@ use RobinsonRyan\Taxon\HasTags;
  * @property string|null $lot_number
  * @property string|null $serial_number
  * @property string|null $notes
- * @property array|null $metadata
+ * @property array<string, mixed>|null $metadata
  * @property \Illuminate\Support\Carbon|null $created_at
- * @property-read string|null $type
+ * @property string|null $type
  * @property-read Model $item
  * @property-read Location|null $fromLocation
  * @property-read Location|null $toLocation
@@ -81,7 +83,7 @@ final class StockMovement extends Model
      */
     public function item(): BelongsTo
     {
-        $itemModel = config('inventory.models.item');
+        $itemModel = ModelResolver::resolveAny('item', Item::class);
 
         return $this->belongsTo($itemModel, 'item_id');
     }
@@ -92,8 +94,8 @@ final class StockMovement extends Model
     public function fromLocation(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.location', Location::class),
-            'from_location_id'
+            ModelResolver::resolve('location', Location::class),
+            'from_location_id',
         );
     }
 
@@ -103,8 +105,8 @@ final class StockMovement extends Model
     public function toLocation(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.location', Location::class),
-            'to_location_id'
+            ModelResolver::resolve('location', Location::class),
+            'to_location_id',
         );
     }
 }

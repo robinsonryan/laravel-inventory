@@ -63,17 +63,17 @@ final readonly class PurchaseOrderData
             'order_date' => $this->orderDate,
             'expected_date' => $this->expectedDate,
             'lines' => array_map(
-                fn (PurchaseOrderLineData|array $line) => $line instanceof PurchaseOrderLineData
+                fn (PurchaseOrderLineData|array $line): array => $line instanceof PurchaseOrderLineData
                     ? $line->toArray()
                     : $line,
-                $this->lines
+                $this->lines,
             ),
             'tax' => $this->tax,
             'shipping' => $this->shipping,
             'shipping_address' => $this->shippingAddress,
             'notes' => $this->notes,
             'metadata' => $this->metadata,
-        ], fn ($value) => $value !== null && $value !== []);
+        ], fn (float|string|array|null $value): bool => $value !== null && $value !== []);
     }
 
     /**
@@ -93,6 +93,6 @@ final readonly class PurchaseOrderData
             'shipping_address' => $this->shippingAddress,
             'notes' => $this->notes,
             'metadata' => $this->metadata,
-        ], fn ($value) => $value !== null);
+        ], fn (float|string|array|null $value): bool => $value !== null);
     }
 }

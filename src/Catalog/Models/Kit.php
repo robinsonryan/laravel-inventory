@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Database\Factories\Catalog\KitFactory;
 use RobinsonRyan\Taxon\HasTags;
@@ -41,7 +42,9 @@ use RobinsonRyan\Taxon\HasTags;
  */
 final class Kit extends Model
 {
+    /** @use HasFactory<KitFactory> */
     use HasFactory;
+
     use HasTags;
     use HasUuid7;
 
@@ -194,10 +197,23 @@ final class Kit extends Model
             Item::class,
             config('inventory.tables.kit_items', 'kit_items'),
             'kit_id',
-            'item_id'
+            'item_id',
         )->withPivot(['quantity', 'is_optional', 'sort_order'])
             ->withTimestamps()
             ->orderByPivot('sort_order');
+    }
+
+    /**
+     * Read the kit_items pivot quantity for a kit member.
+     *
+     * The pivot is only present when the item was loaded through items(); guard
+     * rather than assume, so a directly-constructed Item cannot fatal here.
+     */
+    private function pivotQuantity(Item $item): float
+    {
+        $pivot = $item->getAttribute('pivot');
+
+        return $pivot instanceof Pivot ? (float) $pivot->getAttribute('quantity') : 0.0;
     }
 
     /**
@@ -206,7 +222,7 @@ final class Kit extends Model
     public function calculateTotalCost(): float
     {
         return $this->items->sum(function (Item $item): float {
-            $quantity = (float) $item->pivot->quantity;
+            $quantity = $this->pivotQuantity($item);
             $cost = (float) ($item->cost ?? 0);
 
             return $quantity * $cost;
@@ -219,7 +235,7 @@ final class Kit extends Model
     public function calculateTotalPrice(): float
     {
         return $this->items->sum(function (Item $item): float {
-            $quantity = (float) $item->pivot->quantity;
+            $quantity = $this->pivotQuantity($item);
             $price = (float) ($item->price ?? 0);
 
             return $quantity * $price;

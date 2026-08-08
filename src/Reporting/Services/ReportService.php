@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Reporting\Services;
 
+use InvalidArgumentException;
 use RobinsonRyan\Inventory\Reporting\Contracts\ExporterInterface;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
@@ -143,7 +144,7 @@ final class ReportService
         $format = strtolower($format);
 
         if (! isset($this->exporters[$format])) {
-            throw new \InvalidArgumentException("Unknown export format: {$format}");
+            throw new InvalidArgumentException("Unknown export format: {$format}");
         }
 
         $exporterClass = $this->exporters[$format];
@@ -153,7 +154,7 @@ final class ReportService
             return new AccountingExporter($format);
         }
 
-        return new $exporterClass();
+        return new $exporterClass;
     }
 
     /**
@@ -174,6 +175,28 @@ final class ReportService
     public function registerReport(string $key, string $reportClass): void
     {
         $this->reports[$key] = $reportClass;
+    }
+
+    /**
+     * Resolve the class registered for a report key.
+     *
+     * @return class-string<ReportInterface>
+     */
+    public function getReportClass(string $key): string
+    {
+        if (! isset($this->reports[$key])) {
+            throw new InvalidArgumentException("Unknown report type: {$key}");
+        }
+
+        return $this->reports[$key];
+    }
+
+    /**
+     * Check if a report type is registered.
+     */
+    public function supportsReport(string $key): bool
+    {
+        return isset($this->reports[$key]);
     }
 
     /**

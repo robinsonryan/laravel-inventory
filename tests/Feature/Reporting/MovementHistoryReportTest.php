@@ -13,15 +13,15 @@ use RobinsonRyan\Inventory\Stock\Data\RemoveStockData;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Services\StockService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->reportService = App::make(ReportService::class);
     $this->stockService = App::make(StockService::class);
     $this->location = Location::factory()->warehouse()->create(['code' => 'WH1']);
     $this->item = Item::factory()->create(['sku' => 'TEST-001', 'name' => 'Test Item']);
 });
 
-describe('MovementHistoryReport', function () {
-    it('generates movement history', function () {
+describe('MovementHistoryReport', function (): void {
+    it('generates movement history', function (): void {
         // Create some movements
         $this->stockService->addStock(new AddStockData(
             itemId: $this->item->id,
@@ -31,17 +31,17 @@ describe('MovementHistoryReport', function () {
             cost: 10.00,
         ));
 
-        $report = new MovementHistoryReport();
+        $report = new MovementHistoryReport;
         $data = $this->reportService->generate($report);
 
         expect($data)->toBeInstanceOf(ReportData::class)
             ->and($data->title)->toBe('Movement History Report')
             ->and($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->item_sku)->toBe('TEST-001')
-            ->and($data->rows->first()->type)->toBe('purchase');
+            ->and($data->rows->first()['item_sku'])->toBe('TEST-001')
+            ->and($data->rows->first()['type'])->toBe('purchase');
     });
 
-    it('filters by date range', function () {
+    it('filters by date range', function (): void {
         // Create movement in the past
         Carbon::setTestNow(Carbon::parse('2026-01-01'));
         $this->stockService->addStock(new AddStockData(
@@ -70,10 +70,10 @@ describe('MovementHistoryReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and((float) $data->rows->first()->quantity)->toBe(75.0);
+            ->and((float) $data->rows->first()['quantity'])->toBe(75.0);
     });
 
-    it('filters by movement type', function () {
+    it('filters by movement type', function (): void {
         $this->stockService->addStock(new AddStockData(
             itemId: $this->item->id,
             locationId: $this->location->id,
@@ -92,10 +92,10 @@ describe('MovementHistoryReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->type)->toBe('sale');
+            ->and($data->rows->first()['type'])->toBe('sale');
     });
 
-    it('includes actor information', function () {
+    it('includes actor information', function (): void {
         $this->stockService->addStock(new AddStockData(
             itemId: $this->item->id,
             locationId: $this->location->id,
@@ -105,7 +105,7 @@ describe('MovementHistoryReport', function () {
             referenceId: 'po-123',
         ));
 
-        $report = new MovementHistoryReport();
+        $report = new MovementHistoryReport;
         $data = $this->reportService->generate($report);
         $columns = $report->getColumns();
 
@@ -116,11 +116,11 @@ describe('MovementHistoryReport', function () {
             ->toContain('reference_type')
             ->toContain('reference_id');
 
-        expect($data->rows->first()->reference_type)->toBe('PurchaseOrder')
-            ->and($data->rows->first()->reference_id)->toBe('po-123');
+        expect($data->rows->first()['reference_type'])->toBe('PurchaseOrder')
+            ->and($data->rows->first()['reference_id'])->toBe('po-123');
     });
 
-    it('filters by item', function () {
+    it('filters by item', function (): void {
         $item2 = Item::factory()->create(['sku' => 'TEST-002']);
 
         $this->stockService->addStock(new AddStockData(
@@ -139,10 +139,10 @@ describe('MovementHistoryReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->item_sku)->toBe('TEST-001');
+            ->and($data->rows->first()['item_sku'])->toBe('TEST-001');
     });
 
-    it('filters by location', function () {
+    it('filters by location', function (): void {
         $location2 = Location::factory()->warehouse()->create(['code' => 'WH2']);
 
         $this->stockService->addStock(new AddStockData(
@@ -161,6 +161,6 @@ describe('MovementHistoryReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->to_location)->toBe('WH1');
+            ->and($data->rows->first()['to_location'])->toBe('WH1');
     });
 });

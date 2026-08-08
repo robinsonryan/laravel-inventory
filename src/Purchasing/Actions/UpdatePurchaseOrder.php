@@ -13,10 +13,10 @@ use RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrderLine;
 use RobinsonRyan\Inventory\Purchasing\Services\PurchaseOrderService;
 use RobinsonRyan\Inventory\Purchasing\TagDefinitions\PurchaseOrderStatusDefinition;
 
-final class UpdatePurchaseOrder
+final readonly class UpdatePurchaseOrder
 {
     public function __construct(
-        private readonly PurchaseOrderService $service,
+        private PurchaseOrderService $service,
     ) {}
 
     /**
@@ -41,7 +41,7 @@ final class UpdatePurchaseOrder
             ]);
 
             // Update lines if provided
-            if (! empty($data->lines)) {
+            if ($data->lines !== []) {
                 // Remove existing lines (only if PO is in draft)
                 if ($po->status === 'draft') {
                     $po->lines()->delete();
@@ -71,7 +71,7 @@ final class UpdatePurchaseOrder
             // Recalculate totals
             $this->service->calculateTotals($po);
 
-            return $po->fresh(['lines', 'vendor']);
+            return $po->fresh(['lines', 'vendor']) ?? $po;
         });
     }
 

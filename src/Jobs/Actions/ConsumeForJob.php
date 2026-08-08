@@ -11,10 +11,10 @@ use RobinsonRyan\Inventory\Jobs\Events\PartsConsumed;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 
-final class ConsumeForJob
+final readonly class ConsumeForJob
 {
     public function __construct(
-        private readonly ReservationService $reservationService,
+        private ReservationService $reservationService,
     ) {}
 
     /**
@@ -25,7 +25,7 @@ final class ConsumeForJob
     public function execute(JobContract $job): Collection
     {
         $movements = collect();
-        $jobType = get_class($job);
+        $jobType = $job::class;
         $jobId = $job->getInventoryKey();
 
         $reservations = $this->reservationService->getForJob($jobType, $jobId);

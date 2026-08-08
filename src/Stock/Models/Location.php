@@ -10,8 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use RobinsonRyan\Inventory\Concerns\BelongsToTenant;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
-use RobinsonRyan\Inventory\Stock\Database\Factories\LocationFactory;
+use RobinsonRyan\Inventory\Database\Factories\Stock\LocationFactory;
 use RobinsonRyan\Inventory\Stock\TagDefinitions\LocationTypeDefinition;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 use RobinsonRyan\Taxon\HasTags;
 
 /**
@@ -24,10 +25,10 @@ use RobinsonRyan\Taxon\HasTags;
  * @property bool $is_active
  * @property bool $is_pickable
  * @property bool $is_receivable
- * @property array|null $metadata
+ * @property array<string, mixed>|null $metadata
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read string|null $type
+ * @property string|null $type
  * @property-read Location|null $parent
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Location> $children
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Stock> $stocks
@@ -37,7 +38,10 @@ use RobinsonRyan\Taxon\HasTags;
 final class Location extends Model
 {
     use BelongsToTenant;
+
+    /** @use HasFactory<LocationFactory> */
     use HasFactory;
+
     use HasTags;
     use HasUuid7;
 
@@ -98,8 +102,8 @@ final class Location extends Model
     public function stocks(): HasMany
     {
         return $this->hasMany(
-            config('inventory.models.stock', Stock::class),
-            'location_id'
+            ModelResolver::resolve('stock', Stock::class),
+            'location_id',
         );
     }
 
@@ -109,8 +113,8 @@ final class Location extends Model
     public function incomingMovements(): HasMany
     {
         return $this->hasMany(
-            config('inventory.models.stock_movement', StockMovement::class),
-            'to_location_id'
+            ModelResolver::resolve('stock_movement', StockMovement::class),
+            'to_location_id',
         );
     }
 
@@ -120,8 +124,8 @@ final class Location extends Model
     public function outgoingMovements(): HasMany
     {
         return $this->hasMany(
-            config('inventory.models.stock_movement', StockMovement::class),
-            'from_location_id'
+            ModelResolver::resolve('stock_movement', StockMovement::class),
+            'from_location_id',
         );
     }
 

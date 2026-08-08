@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace RobinsonRyan\Inventory\Reporting\Reports;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
+use RobinsonRyan\Inventory\Support\TableResolver;
 
 final class MovementHistoryReport implements ReportInterface
 {
@@ -24,9 +26,9 @@ final class MovementHistoryReport implements ReportInterface
 
     public function generate(): ReportData
     {
-        $movementsTable = config('inventory.tables.stock_movements', 'stock_movements');
-        $itemsTable = config('inventory.tables.items', 'items');
-        $locationsTable = config('inventory.tables.locations', 'locations');
+        $movementsTable = TableResolver::resolve('stock_movements', 'stock_movements');
+        $itemsTable = TableResolver::resolve('items', 'items');
+        $locationsTable = TableResolver::resolve('locations', 'locations');
 
         $query = DB::table($movementsTable)
             ->join($itemsTable, "{$movementsTable}.item_id", '=', "{$itemsTable}.id")
@@ -53,11 +55,11 @@ final class MovementHistoryReport implements ReportInterface
             ])
             ->orderByDesc("{$movementsTable}.created_at");
 
-        if ($this->fromDate !== null) {
+        if ($this->fromDate instanceof Carbon) {
             $query->where("{$movementsTable}.created_at", '>=', $this->fromDate->startOfDay());
         }
 
-        if ($this->toDate !== null) {
+        if ($this->toDate instanceof Carbon) {
             $query->where("{$movementsTable}.created_at", '<=', $this->toDate->endOfDay());
         }
 
@@ -66,7 +68,7 @@ final class MovementHistoryReport implements ReportInterface
         }
 
         if ($this->locationId !== null) {
-            $query->where(function ($q) use ($movementsTable) {
+            $query->where(function ($q) use ($movementsTable): void {
                 $q->where("{$movementsTable}.from_location_id", $this->locationId)
                     ->orWhere("{$movementsTable}.to_location_id", $this->locationId);
             });
@@ -84,13 +86,16 @@ final class MovementHistoryReport implements ReportInterface
             $query->where("{$movementsTable}.reference_id", $this->referenceId);
         }
 
-        $rows = $query->get();
+        // Normalise the raw stdClass result rows to arrays once, here, rather
+        // than leaving every exporter to cast defensively.
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = $query->get()->map(fn (object $row): array => (array) $row);
 
         // Calculate summary
         $totalMovements = $rows->count();
         $totalQuantityIn = $rows->whereNotNull('to_location_id')->sum('quantity');
         $totalQuantityOut = $rows->whereNotNull('from_location_id')->sum('quantity');
-        $totalCost = $rows->sum(fn ($row) => (float) $row->quantity * (float) ($row->cost ?? 0));
+        $totalCost = $rows->sum(fn (array $row): float => (float) $row['quantity'] * (float) ($row['cost'] ?? 0));
 
         return new ReportData(
             title: $this->getTitle(),
@@ -116,7 +121,7 @@ final class MovementHistoryReport implements ReportInterface
      */
     public function getColumns(): array
     {
-        return array_map(fn (ColumnDefinition $col) => $col->toArray(), $this->getColumnDefinitions());
+        return array_map(fn (ColumnDefinition $col): array => $col->toArray(), $this->getColumnDefinitions());
     }
 
     /**

@@ -11,13 +11,13 @@ use RobinsonRyan\Inventory\Reporting\Reports\PurchaseOrderReport;
 use RobinsonRyan\Inventory\Reporting\Services\ReportService;
 use Symfony\Component\Uid\Uuid;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->reportService = App::make(ReportService::class);
     $this->vendorId = (string) Uuid::v7();
 });
 
-describe('PurchaseOrderReport', function () {
-    it('generates purchase order report', function () {
+describe('PurchaseOrderReport', function (): void {
+    it('generates purchase order report', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendorId)
             ->create([
@@ -31,18 +31,18 @@ describe('PurchaseOrderReport', function () {
             ->count(3)
             ->create();
 
-        $report = new PurchaseOrderReport();
+        $report = new PurchaseOrderReport;
         $data = $this->reportService->generate($report);
 
         expect($data)->toBeInstanceOf(ReportData::class)
             ->and($data->title)->toBe('Purchase Order Report')
             ->and($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->po_number)->toBe('PO-001')
-            ->and((float) $data->rows->first()->total)->toBe(1000.00)
-            ->and((int) $data->rows->first()->line_count)->toBe(3);
+            ->and($data->rows->first()['po_number'])->toBe('PO-001')
+            ->and((float) $data->rows->first()['total'])->toBe(1000.00)
+            ->and((int) $data->rows->first()['line_count'])->toBe(3);
     });
 
-    it('filters by date range', function () {
+    it('filters by date range', function (): void {
         // Old PO
         PurchaseOrder::factory()
             ->forVendor($this->vendorId)
@@ -66,10 +66,10 @@ describe('PurchaseOrderReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->po_number)->toBe('PO-RECENT');
+            ->and($data->rows->first()['po_number'])->toBe('PO-RECENT');
     });
 
-    it('filters by vendor', function () {
+    it('filters by vendor', function (): void {
         $vendorId2 = (string) Uuid::v7();
 
         PurchaseOrder::factory()
@@ -84,10 +84,10 @@ describe('PurchaseOrderReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->po_number)->toBe('PO-V1');
+            ->and($data->rows->first()['po_number'])->toBe('PO-V1');
     });
 
-    it('filters by status', function () {
+    it('filters by status', function (): void {
         PurchaseOrder::factory()
             ->forVendor($this->vendorId)
             ->draft()
@@ -102,10 +102,10 @@ describe('PurchaseOrderReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->po_number)->toBe('PO-SUBMITTED');
+            ->and($data->rows->first()['po_number'])->toBe('PO-SUBMITTED');
     });
 
-    it('calculates received and pending values', function () {
+    it('calculates received and pending values', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendorId)
             ->create([
@@ -133,7 +133,7 @@ describe('PurchaseOrderReport', function () {
         $receiptLinesTable = config('inventory.tables.receipt_lines', 'receipt_lines');
 
         $receiptId = (string) Uuid::v7();
-        \Illuminate\Support\Facades\DB::table($receiptsTable)->insert([
+        Illuminate\Support\Facades\DB::table($receiptsTable)->insert([
             'id' => $receiptId,
             'purchase_order_id' => $po->id,
             'receipt_number' => 'REC-001',
@@ -142,7 +142,7 @@ describe('PurchaseOrderReport', function () {
             'updated_at' => Carbon::now(),
         ]);
 
-        \Illuminate\Support\Facades\DB::table($receiptLinesTable)->insert([
+        Illuminate\Support\Facades\DB::table($receiptLinesTable)->insert([
             'id' => (string) Uuid::v7(),
             'receipt_id' => $receiptId,
             'purchase_order_line_id' => $line1->id,
@@ -152,14 +152,14 @@ describe('PurchaseOrderReport', function () {
             'updated_at' => Carbon::now(),
         ]);
 
-        $report = new PurchaseOrderReport();
+        $report = new PurchaseOrderReport;
         $data = $this->reportService->generate($report);
 
-        expect((float) $data->rows->first()->received_value)->toBe(250.00)
-            ->and((float) $data->rows->first()->pending_value)->toBe(750.00);
+        expect((float) $data->rows->first()['received_value'])->toBe(250.00)
+            ->and((float) $data->rows->first()['pending_value'])->toBe(750.00);
     });
 
-    it('calculates summary totals', function () {
+    it('calculates summary totals', function (): void {
         PurchaseOrder::factory()
             ->forVendor($this->vendorId)
             ->create(['total' => 1000.00]);
@@ -168,7 +168,7 @@ describe('PurchaseOrderReport', function () {
             ->forVendor($this->vendorId)
             ->create(['total' => 500.00]);
 
-        $report = new PurchaseOrderReport();
+        $report = new PurchaseOrderReport;
         $data = $this->reportService->generate($report);
 
         expect($data->getSummary('total_orders'))->toBe(2)
@@ -176,8 +176,8 @@ describe('PurchaseOrderReport', function () {
             ->and($data->getSummary('average_order_value'))->toBe(750.00);
     });
 
-    it('includes all required columns', function () {
-        $report = new PurchaseOrderReport();
+    it('includes all required columns', function (): void {
+        $report = new PurchaseOrderReport;
         $columns = $report->getColumns();
 
         $columnKeys = array_column($columns, 'key');

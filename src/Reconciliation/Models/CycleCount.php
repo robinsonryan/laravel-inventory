@@ -13,6 +13,7 @@ use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Database\Factories\Reconciliation\CycleCountFactory;
 use RobinsonRyan\Inventory\Reconciliation\TagDefinitions\CycleCountStatusDefinition;
 use RobinsonRyan\Inventory\Stock\Models\Location;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 use RobinsonRyan\Taxon\HasTags;
 
 /**
@@ -27,10 +28,10 @@ use RobinsonRyan\Taxon\HasTags;
  * @property string|null $approved_by
  * @property string|null $created_by
  * @property string|null $notes
- * @property array|null $metadata
+ * @property array<string, mixed>|null $metadata
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read string|null $status
+ * @property string|null $status
  * @property-read Location|null $location
  * @property-read \Illuminate\Database\Eloquent\Collection<int, CycleCountLine> $lines
  * @property-read \Illuminate\Database\Eloquent\Collection<int, VarianceAdjustment> $adjustments
@@ -38,7 +39,10 @@ use RobinsonRyan\Taxon\HasTags;
 final class CycleCount extends Model
 {
     use BelongsToTenant;
+
+    /** @use HasFactory<CycleCountFactory> */
     use HasFactory;
+
     use HasTags;
     use HasUuid7;
 
@@ -80,8 +84,8 @@ final class CycleCount extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.location', Location::class),
-            'location_id'
+            ModelResolver::resolve('location', Location::class),
+            'location_id',
         );
     }
 
@@ -91,8 +95,8 @@ final class CycleCount extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(
-            config('inventory.models.cycle_count_line', CycleCountLine::class),
-            'cycle_count_id'
+            ModelResolver::resolve('cycle_count_line', CycleCountLine::class),
+            'cycle_count_id',
         );
     }
 
@@ -102,8 +106,8 @@ final class CycleCount extends Model
     public function adjustments(): HasMany
     {
         return $this->hasMany(
-            config('inventory.models.variance_adjustment', VarianceAdjustment::class),
-            'cycle_count_id'
+            ModelResolver::resolve('variance_adjustment', VarianceAdjustment::class),
+            'cycle_count_id',
         );
     }
 

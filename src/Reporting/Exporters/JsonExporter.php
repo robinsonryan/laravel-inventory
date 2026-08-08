@@ -7,11 +7,11 @@ namespace RobinsonRyan\Inventory\Reporting\Exporters;
 use RobinsonRyan\Inventory\Reporting\Contracts\ExporterInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
 
-final class JsonExporter implements ExporterInterface
+final readonly class JsonExporter implements ExporterInterface
 {
     public function __construct(
-        private readonly bool $prettyPrint = false,
-        private readonly bool $includeMetadata = true,
+        private bool $prettyPrint = false,
+        private bool $includeMetadata = true,
     ) {}
 
     public function export(ReportData $data): string
@@ -21,12 +21,12 @@ final class JsonExporter implements ExporterInterface
         if ($this->includeMetadata) {
             $output['title'] = $data->title;
             $output['generated_at'] = $data->generatedAt?->toIso8601String();
-            $output['columns'] = array_map(fn ($col) => $col->toArray(), $data->columns);
+            $output['columns'] = array_map(fn (\RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition $col): array => $col->toArray(), $data->columns);
             $output['summary'] = $data->summary;
         }
 
         // Convert row objects to arrays for clean JSON output
-        $output['rows'] = $data->rows->map(fn ($row) => (array) $row)->values()->toArray();
+        $output['rows'] = $data->rows->map(fn ($row): array => (array) $row)->values()->toArray();
 
         $flags = JSON_THROW_ON_ERROR;
 

@@ -16,14 +16,14 @@ use RobinsonRyan\Inventory\Purchasing\Services\PurchaseOrderService;
 use RobinsonRyan\Inventory\Purchasing\TagDefinitions\PurchaseOrderStatusDefinition;
 use RobinsonRyan\Vendor\Models\Vendor;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->service = App::make(PurchaseOrderService::class);
     $this->vendor = Vendor::factory()->create();
     $this->item = Item::factory()->create();
 });
 
-describe('CreatePurchaseOrder', function () {
-    it('creates a purchase order', function () {
+describe('CreatePurchaseOrder', function (): void {
+    it('creates a purchase order', function (): void {
         $data = new PurchaseOrderData(
             vendorId: $this->vendor->id,
             notes: 'Test purchase order',
@@ -39,7 +39,7 @@ describe('CreatePurchaseOrder', function () {
             ->and($po->po_number)->toStartWith('PO-');
     });
 
-    it('creates a purchase order with lines', function () {
+    it('creates a purchase order with lines', function (): void {
         $data = new PurchaseOrderData(
             vendorId: $this->vendor->id,
             lines: [
@@ -62,11 +62,9 @@ describe('CreatePurchaseOrder', function () {
             ->and((float) $po->lines->first()->total)->toBe(255.0);
     });
 
-    it('calculates totals correctly', function () {
+    it('calculates totals correctly', function (): void {
         $data = new PurchaseOrderData(
             vendorId: $this->vendor->id,
-            tax: 50.00,
-            shipping: 25.00,
             lines: [
                 new PurchaseOrderLineData(
                     itemId: $this->item->id,
@@ -74,6 +72,8 @@ describe('CreatePurchaseOrder', function () {
                     unitCost: 100.00,
                 ),
             ],
+            tax: 50.00,
+            shipping: 25.00,
         );
 
         $action = App::make(CreatePurchaseOrder::class);
@@ -85,7 +85,7 @@ describe('CreatePurchaseOrder', function () {
             ->and((float) $po->total)->toBe(1075.00);
     });
 
-    it('auto-generates PO number if not provided', function () {
+    it('auto-generates PO number if not provided', function (): void {
         $data = new PurchaseOrderData(vendorId: $this->vendor->id);
 
         $action = App::make(CreatePurchaseOrder::class);
@@ -94,7 +94,7 @@ describe('CreatePurchaseOrder', function () {
         expect($po->po_number)->toMatch('/^PO-\d{8}-\d{4}$/');
     });
 
-    it('uses custom PO number if provided', function () {
+    it('uses custom PO number if provided', function (): void {
         $data = new PurchaseOrderData(
             vendorId: $this->vendor->id,
             poNumber: 'CUSTOM-PO-001',
@@ -107,8 +107,8 @@ describe('CreatePurchaseOrder', function () {
     });
 });
 
-describe('UpdatePurchaseOrder', function () {
-    it('updates a draft purchase order', function () {
+describe('UpdatePurchaseOrder', function (): void {
+    it('updates a draft purchase order', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->draft()
@@ -128,7 +128,7 @@ describe('UpdatePurchaseOrder', function () {
             ->and($updated->notes)->toBe('Updated notes');
     });
 
-    it('cannot update a received purchase order', function () {
+    it('cannot update a received purchase order', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->received()
@@ -141,7 +141,7 @@ describe('UpdatePurchaseOrder', function () {
             ->toThrow(InvalidArgumentException::class);
     });
 
-    it('cannot update a cancelled purchase order', function () {
+    it('cannot update a cancelled purchase order', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->cancelled()
@@ -155,8 +155,8 @@ describe('UpdatePurchaseOrder', function () {
     });
 });
 
-describe('SubmitPurchaseOrder', function () {
-    it('submits a draft purchase order', function () {
+describe('SubmitPurchaseOrder', function (): void {
+    it('submits a draft purchase order', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->draft()
@@ -170,7 +170,7 @@ describe('SubmitPurchaseOrder', function () {
             ->and($submitted->submitted_at)->not->toBeNull();
     });
 
-    it('cannot submit without lines', function () {
+    it('cannot submit without lines', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->draft()
@@ -182,7 +182,7 @@ describe('SubmitPurchaseOrder', function () {
             ->toThrow(InvalidArgumentException::class, 'no lines');
     });
 
-    it('cannot submit already submitted order', function () {
+    it('cannot submit already submitted order', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -195,8 +195,8 @@ describe('SubmitPurchaseOrder', function () {
     });
 });
 
-describe('CancelPurchaseOrder', function () {
-    it('cancels a draft purchase order', function () {
+describe('CancelPurchaseOrder', function (): void {
+    it('cancels a draft purchase order', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->draft()
@@ -211,7 +211,7 @@ describe('CancelPurchaseOrder', function () {
             ->and($cancelled->metadata['cancellation_reason'])->toBe('Changed mind');
     });
 
-    it('cancels remaining quantities on lines', function () {
+    it('cancels remaining quantities on lines', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -219,7 +219,7 @@ describe('CancelPurchaseOrder', function () {
                 PurchaseOrderLine::factory()
                     ->forItem($this->item->id)
                     ->state(['quantity' => 100, 'quantity_received' => 25]),
-                'lines'
+                'lines',
             )
             ->create();
 
@@ -229,7 +229,7 @@ describe('CancelPurchaseOrder', function () {
         expect((float) $cancelled->lines->first()->quantity_cancelled)->toBe(75.0);
     });
 
-    it('cannot cancel a received order', function () {
+    it('cannot cancel a received order', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->received()
@@ -242,8 +242,8 @@ describe('CancelPurchaseOrder', function () {
     });
 });
 
-describe('PurchaseOrderService', function () {
-    it('generates sequential PO numbers', function () {
+describe('PurchaseOrderService', function (): void {
+    it('generates sequential PO numbers', function (): void {
         $po1 = $this->service->generatePoNumber();
         $po2 = $this->service->generatePoNumber();
 
@@ -260,7 +260,7 @@ describe('PurchaseOrderService', function () {
         expect($po3)->toMatch('/^PO-\d{8}-0002$/');
     });
 
-    it('checks if PO is fully received', function () {
+    it('checks if PO is fully received', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -268,14 +268,14 @@ describe('PurchaseOrderService', function () {
                 PurchaseOrderLine::factory()
                     ->forItem($this->item->id)
                     ->fullyReceived(),
-                'lines'
+                'lines',
             )
             ->create();
 
         expect($this->service->isFullyReceived($po))->toBeTrue();
     });
 
-    it('checks if PO is not fully received', function () {
+    it('checks if PO is not fully received', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -283,14 +283,14 @@ describe('PurchaseOrderService', function () {
                 PurchaseOrderLine::factory()
                     ->forItem($this->item->id)
                     ->partiallyReceived(0.5),
-                'lines'
+                'lines',
             )
             ->create();
 
         expect($this->service->isFullyReceived($po))->toBeFalse();
     });
 
-    it('gets open orders for vendor', function () {
+    it('gets open orders for vendor', function (): void {
         // Create various POs for this vendor
         PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
@@ -312,7 +312,7 @@ describe('PurchaseOrderService', function () {
         expect($open)->toHaveCount(2);
     });
 
-    it('gets pending lines', function () {
+    it('gets pending lines', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -326,8 +326,8 @@ describe('PurchaseOrderService', function () {
     });
 });
 
-describe('PurchaseOrderLine Model', function () {
-    it('calculates pending quantity', function () {
+describe('PurchaseOrderLine Model', function (): void {
+    it('calculates pending quantity', function (): void {
         $line = PurchaseOrderLine::factory()->state([
             'quantity' => 100,
             'quantity_received' => 25,
@@ -337,7 +337,7 @@ describe('PurchaseOrderLine Model', function () {
         expect($line->getQuantityPending())->toBe(65.0);
     });
 
-    it('identifies fully received line', function () {
+    it('identifies fully received line', function (): void {
         $line = PurchaseOrderLine::factory()->state([
             'quantity' => 100,
             'quantity_received' => 100,
@@ -347,20 +347,20 @@ describe('PurchaseOrderLine Model', function () {
     });
 });
 
-describe('PurchaseOrderStatusDefinition', function () {
-    it('has correct slug', function () {
+describe('PurchaseOrderStatusDefinition', function (): void {
+    it('has correct slug', function (): void {
         expect(PurchaseOrderStatusDefinition::$slug)->toBe('purchase-order-status');
     });
 
-    it('is single select', function () {
+    it('is single select', function (): void {
         expect(PurchaseOrderStatusDefinition::$singleSelect)->toBeTrue();
     });
 
-    it('is global', function () {
+    it('is global', function (): void {
         expect(PurchaseOrderStatusDefinition::$global)->toBeTrue();
     });
 
-    it('has expected statuses', function () {
+    it('has expected statuses', function (): void {
         expect(PurchaseOrderStatusDefinition::DEFAULT_VALUES)
             ->toContain('draft')
             ->toContain('submitted')
@@ -369,7 +369,7 @@ describe('PurchaseOrderStatusDefinition', function () {
             ->toContain('cancelled');
     });
 
-    it('defines open statuses', function () {
+    it('defines open statuses', function (): void {
         expect(PurchaseOrderStatusDefinition::OPEN)
             ->toContain('draft')
             ->toContain('submitted')
@@ -378,7 +378,7 @@ describe('PurchaseOrderStatusDefinition', function () {
             ->not->toContain('cancelled');
     });
 
-    it('defines terminal statuses', function () {
+    it('defines terminal statuses', function (): void {
         expect(PurchaseOrderStatusDefinition::TERMINAL)
             ->toContain('received')
             ->toContain('cancelled')

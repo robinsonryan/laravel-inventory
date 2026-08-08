@@ -10,13 +10,13 @@ use RobinsonRyan\Inventory\Reporting\Services\ReportService;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->reportService = App::make(ReportService::class);
     $this->location = Location::factory()->warehouse()->create(['code' => 'WH1']);
 });
 
-describe('LowStockReport', function () {
-    it('generates low stock report', function () {
+describe('LowStockReport', function (): void {
+    it('generates low stock report', function (): void {
         // Item below minimum
         $lowItem = Item::factory()->create([
             'sku' => 'LOW-001',
@@ -45,16 +45,16 @@ describe('LowStockReport', function () {
             ->withQuantity(100)
             ->create();
 
-        $report = new LowStockReport();
+        $report = new LowStockReport;
         $data = $this->reportService->generate($report);
 
         expect($data)->toBeInstanceOf(ReportData::class)
             ->and($data->title)->toBe('Low Stock Report')
             ->and($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->item_sku)->toBe('LOW-001');
+            ->and($data->rows->first()['item_sku'])->toBe('LOW-001');
     });
 
-    it('includes zero stock items', function () {
+    it('includes zero stock items', function (): void {
         $item = Item::factory()->create([
             'sku' => 'ZERO-001',
             'min_stock_level' => 50,
@@ -67,11 +67,11 @@ describe('LowStockReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->item_sku)->toBe('ZERO-001')
-            ->and((float) $data->rows->first()->current_quantity)->toBe(0.0);
+            ->and($data->rows->first()['item_sku'])->toBe('ZERO-001')
+            ->and((float) $data->rows->first()['current_quantity'])->toBe(0.0);
     });
 
-    it('excludes zero stock items when requested', function () {
+    it('excludes zero stock items when requested', function (): void {
         $zeroItem = Item::factory()->create([
             'sku' => 'ZERO-001',
             'min_stock_level' => 50,
@@ -90,14 +90,14 @@ describe('LowStockReport', function () {
             ->withQuantity(50)
             ->create();
 
-        $report = new LowStockReport(includeZero: false, includeBelowMin: true);
+        $report = new LowStockReport(includeBelowMin: true, includeZero: false);
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->item_sku)->toBe('LOW-001');
+            ->and($data->rows->first()['item_sku'])->toBe('LOW-001');
     });
 
-    it('filters by category', function () {
+    it('filters by category', function (): void {
         $partItem = Item::factory()->create([
             'sku' => 'PART-001',
             'category' => 'part',
@@ -128,10 +128,10 @@ describe('LowStockReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->category)->toBe('part');
+            ->and($data->rows->first()['category'])->toBe('part');
     });
 
-    it('calculates shortfall correctly', function () {
+    it('calculates shortfall correctly', function (): void {
         $item = Item::factory()->create([
             'sku' => 'LOW-001',
             'min_stock_level' => 100,
@@ -145,17 +145,17 @@ describe('LowStockReport', function () {
             ->withReserved(10)
             ->create();
 
-        $report = new LowStockReport();
+        $report = new LowStockReport;
         $data = $this->reportService->generate($report);
 
         // Available = 60 - 10 = 50
         // Shortfall = 100 - 50 = 50
-        expect((float) $data->rows->first()->current_quantity)->toBe(60.0)
-            ->and((float) $data->rows->first()->available_quantity)->toBe(50.0)
-            ->and((float) $data->rows->first()->shortfall)->toBe(50.0);
+        expect((float) $data->rows->first()['current_quantity'])->toBe(60.0)
+            ->and((float) $data->rows->first()['available_quantity'])->toBe(50.0)
+            ->and((float) $data->rows->first()['shortfall'])->toBe(50.0);
     });
 
-    it('aggregates stock across locations', function () {
+    it('aggregates stock across locations', function (): void {
         $location2 = Location::factory()->warehouse()->create();
 
         $item = Item::factory()->create([
@@ -176,16 +176,16 @@ describe('LowStockReport', function () {
             ->withQuantity(40)
             ->create();
 
-        $report = new LowStockReport();
+        $report = new LowStockReport;
         $data = $this->reportService->generate($report);
 
         // Total = 30 + 40 = 70, still below min of 100
         expect($data->rows)->toHaveCount(1)
-            ->and((float) $data->rows->first()->current_quantity)->toBe(70.0)
-            ->and((float) $data->rows->first()->shortfall)->toBe(30.0);
+            ->and((float) $data->rows->first()['current_quantity'])->toBe(70.0)
+            ->and((float) $data->rows->first()['shortfall'])->toBe(30.0);
     });
 
-    it('excludes inactive items', function () {
+    it('excludes inactive items', function (): void {
         $activeItem = Item::factory()->create([
             'sku' => 'ACTIVE-001',
             'min_stock_level' => 100,
@@ -210,14 +210,14 @@ describe('LowStockReport', function () {
             ->withQuantity(50)
             ->create();
 
-        $report = new LowStockReport();
+        $report = new LowStockReport;
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->item_sku)->toBe('ACTIVE-001');
+            ->and($data->rows->first()['item_sku'])->toBe('ACTIVE-001');
     });
 
-    it('calculates summary correctly', function () {
+    it('calculates summary correctly', function (): void {
         // Zero stock item
         Item::factory()->create([
             'sku' => 'ZERO-001',
@@ -251,7 +251,7 @@ describe('LowStockReport', function () {
             ->withQuantity(30)
             ->create();
 
-        $report = new LowStockReport();
+        $report = new LowStockReport;
         $data = $this->reportService->generate($report);
 
         expect($data->getSummary('total_items'))->toBe(3)

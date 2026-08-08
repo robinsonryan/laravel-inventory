@@ -132,7 +132,7 @@ describe('Item', function (): void {
         expect(fn () => Item::create([
             'sku' => 'UNIQUE-001',
             'name' => 'Duplicate SKU',
-        ]))->toThrow(\Illuminate\Database\QueryException::class);
+        ]))->toThrow(Illuminate\Database\QueryException::class);
     });
 
     it('uses factory to create items', function (): void {

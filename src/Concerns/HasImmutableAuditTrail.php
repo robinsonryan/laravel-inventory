@@ -22,7 +22,7 @@ trait HasImmutableAuditTrail
         static::updating(function (Model $model): void {
             if (config('inventory.rules.movement_immutable', true)) {
                 throw new RuntimeException(
-                    sprintf('Cannot update %s: records are immutable for audit trail integrity.', class_basename($model))
+                    sprintf('Cannot update %s: records are immutable for audit trail integrity.', class_basename($model)),
                 );
             }
         });
@@ -30,7 +30,7 @@ trait HasImmutableAuditTrail
         static::deleting(function (Model $model): void {
             if (config('inventory.rules.movement_immutable', true)) {
                 throw new RuntimeException(
-                    sprintf('Cannot delete %s: records are immutable for audit trail integrity.', class_basename($model))
+                    sprintf('Cannot delete %s: records are immutable for audit trail integrity.', class_basename($model)),
                 );
             }
         });

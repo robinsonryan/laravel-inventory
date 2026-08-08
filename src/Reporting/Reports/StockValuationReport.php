@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
-use RobinsonRyan\Inventory\Stock\Models\Stock;
+use RobinsonRyan\Inventory\Support\TableResolver;
 
 final class StockValuationReport implements ReportInterface
 {
@@ -22,9 +22,9 @@ final class StockValuationReport implements ReportInterface
 
     public function generate(): ReportData
     {
-        $stockTable = config('inventory.tables.stock', 'stock');
-        $itemsTable = config('inventory.tables.items', 'items');
-        $locationsTable = config('inventory.tables.locations', 'locations');
+        $stockTable = TableResolver::resolve('stock', 'stock');
+        $itemsTable = TableResolver::resolve('items', 'items');
+        $locationsTable = TableResolver::resolve('locations', 'locations');
 
         $query = DB::table($stockTable)
             ->join($itemsTable, "{$stockTable}.item_id", '=', "{$itemsTable}.id")
@@ -56,7 +56,10 @@ final class StockValuationReport implements ReportInterface
             $query->where("{$itemsTable}.category", $this->category);
         }
 
-        $rows = $query->get();
+        // Normalise the raw stdClass result rows to arrays once, here, rather
+        // than leaving every exporter to cast defensively.
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = $query->get()->map(fn (object $row): array => (array) $row);
 
         // Calculate summary totals
         $totalQuantity = $rows->sum('quantity');
@@ -90,7 +93,7 @@ final class StockValuationReport implements ReportInterface
      */
     public function getColumns(): array
     {
-        return array_map(fn (ColumnDefinition $col) => $col->toArray(), $this->getColumnDefinitions());
+        return array_map(fn (ColumnDefinition $col): array => $col->toArray(), $this->getColumnDefinitions());
     }
 
     /**

@@ -19,7 +19,7 @@ final class PurchaseOrderStatusDefinition extends TagDefinition
     /**
      * @var list<string>
      */
-    public const array DEFAULT_VALUES = [
+    public const DEFAULT_VALUES = [
         'draft',
         'submitted',
         'partial',
@@ -30,10 +30,10 @@ final class PurchaseOrderStatusDefinition extends TagDefinition
     /**
      * @var list<string>
      */
-    public const array OPEN = ['draft', 'submitted', 'partial'];
+    public const OPEN = ['draft', 'submitted', 'partial'];
 
     /**
      * @var list<string>
      */
-    public const array TERMINAL = ['received', 'cancelled'];
+    public const TERMINAL = ['received', 'cancelled'];
 }

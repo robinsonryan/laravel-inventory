@@ -20,12 +20,12 @@ use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 use RobinsonRyan\Inventory\Stock\Services\StockService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->stockService = App::make(StockService::class);
     $this->reservationService = App::make(ReservationService::class);
     $this->location = Location::factory()->warehouse()->create();
-    $this->itemId = (string) \Symfony\Component\Uid\Uuid::v7();
-    $this->itemId2 = (string) \Symfony\Component\Uid\Uuid::v7();
+    $this->itemId = (string) Symfony\Component\Uid\Uuid::v7();
+    $this->itemId2 = (string) Symfony\Component\Uid\Uuid::v7();
 
     // Add initial stock
     $this->stockService->addStock(new AddStockData(
@@ -43,8 +43,8 @@ beforeEach(function () {
     ));
 });
 
-describe('ReserveForJob Action', function () {
-    it('manually reserves for job', function () {
+describe('ReserveForJob Action', function (): void {
+    it('manually reserves for job', function (): void {
         Event::fake([PartsReserved::class]);
 
         $job = createMockJobForAction($this->itemId, 25, 'WO-100');
@@ -63,7 +63,7 @@ describe('ReserveForJob Action', function () {
         Event::assertDispatched(PartsReserved::class);
     });
 
-    it('returns empty collection for insufficient stock', function () {
+    it('returns empty collection for insufficient stock', function (): void {
         Event::fake([PartsReserved::class, InsufficientStock::class]);
 
         $job = createMockJobForAction($this->itemId, 150, 'WO-101');
@@ -77,7 +77,7 @@ describe('ReserveForJob Action', function () {
         Event::assertDispatched(InsufficientStock::class);
     });
 
-    it('reserves multiple items for job', function () {
+    it('reserves multiple items for job', function (): void {
         Event::fake([PartsReserved::class]);
 
         $job = createMockJobWithItemsForAction([
@@ -94,8 +94,8 @@ describe('ReserveForJob Action', function () {
     });
 });
 
-describe('ConsumeForJob Action', function () {
-    it('manually consumes for job', function () {
+describe('ConsumeForJob Action', function (): void {
+    it('manually consumes for job', function (): void {
         // First reserve
         $job = createMockJobForAction($this->itemId, 25, 'WO-110');
         $reserveAction = App::make(ReserveForJob::class);
@@ -118,7 +118,7 @@ describe('ConsumeForJob Action', function () {
         Event::assertDispatched(PartsConsumed::class);
     });
 
-    it('returns empty collection when no reservations exist', function () {
+    it('returns empty collection when no reservations exist', function (): void {
         Event::fake([PartsConsumed::class]);
 
         $job = createMockJobForAction($this->itemId, 25, 'WO-111');
@@ -131,8 +131,8 @@ describe('ConsumeForJob Action', function () {
     });
 });
 
-describe('ReleaseForJob Action', function () {
-    it('manually releases for job', function () {
+describe('ReleaseForJob Action', function (): void {
+    it('manually releases for job', function (): void {
         // First reserve
         $job = createMockJobForAction($this->itemId, 25, 'WO-120');
         $reserveAction = App::make(ReserveForJob::class);
@@ -156,7 +156,7 @@ describe('ReleaseForJob Action', function () {
         Event::assertDispatched(PartsReleased::class);
     });
 
-    it('returns empty collection when no active reservations exist', function () {
+    it('returns empty collection when no active reservations exist', function (): void {
         Event::fake([PartsReleased::class]);
 
         $job = createMockJobForAction($this->itemId, 25, 'WO-121');
@@ -169,8 +169,8 @@ describe('ReleaseForJob Action', function () {
     });
 });
 
-describe('UpdateJobReservations Action', function () {
-    it('updates reservations when job items change', function () {
+describe('UpdateJobReservations Action', function (): void {
+    it('updates reservations when job items change', function (): void {
         // Create initial reservation
         $job = createMockJobWithItemsForAction([
             ['item_id' => $this->itemId, 'quantity' => 20, 'line_id' => 'line-1'],
@@ -198,7 +198,7 @@ describe('UpdateJobReservations Action', function () {
         Event::assertDispatched(PartsReserved::class);
     });
 
-    it('releases reservations for removed items', function () {
+    it('releases reservations for removed items', function (): void {
         // Create initial reservations for two items
         $job = createMockJobWithItemsForAction([
             ['item_id' => $this->itemId, 'quantity' => 20, 'line_id' => 'line-1'],
@@ -221,12 +221,10 @@ describe('UpdateJobReservations Action', function () {
         // Item2 reservation should be released
         expect($this->stockService->getAvailable($this->itemId2, $this->location->id))->toBe(50.0);
 
-        Event::assertDispatched(PartsReleased::class, function ($event) {
-            return count($event->reservations) === 1;
-        });
+        Event::assertDispatched(PartsReleased::class, fn ($event): bool => count($event->reservations) === 1);
     });
 
-    it('creates new reservations for added items', function () {
+    it('creates new reservations for added items', function (): void {
         // Create initial reservation
         $job = createMockJobWithItemsForAction([
             ['item_id' => $this->itemId, 'quantity' => 20, 'line_id' => 'line-1'],
@@ -248,13 +246,11 @@ describe('UpdateJobReservations Action', function () {
 
         expect($this->stockService->getAvailable($this->itemId2, $this->location->id))->toBe(35.0);
 
-        Event::assertDispatched(PartsReserved::class, function ($event) {
-            return count($event->reservations) === 1;
-        });
+        Event::assertDispatched(PartsReserved::class, fn ($event): bool => count($event->reservations) === 1);
         Event::assertNotDispatched(PartsReleased::class);
     });
 
-    it('keeps unchanged reservations', function () {
+    it('keeps unchanged reservations', function (): void {
         // Create initial reservation
         $job = createMockJobWithItemsForAction([
             ['item_id' => $this->itemId, 'quantity' => 20, 'line_id' => 'line-1'],
@@ -271,7 +267,7 @@ describe('UpdateJobReservations Action', function () {
         $updateAction->execute($job);
 
         // Reservation should still exist with same ID
-        $reservations = $this->reservationService->getForJob(get_class($job), 'WO-133');
+        $reservations = $this->reservationService->getForJob($job::class, 'WO-133');
         expect($reservations)->toHaveCount(1)
             ->and($reservations->first()->id)->toBe($initialId);
 
@@ -279,7 +275,7 @@ describe('UpdateJobReservations Action', function () {
         Event::assertNotDispatched(PartsReleased::class);
     });
 
-    it('dispatches InsufficientStock for new items without stock', function () {
+    it('dispatches InsufficientStock for new items without stock', function (): void {
         // Create initial reservation using most of the stock
         $job = createMockJobWithItemsForAction([
             ['item_id' => $this->itemId, 'quantity' => 90, 'line_id' => 'line-1'],
@@ -299,11 +295,9 @@ describe('UpdateJobReservations Action', function () {
         $updateAction = App::make(UpdateJobReservations::class);
         $updateAction->execute($updatedJob);
 
-        Event::assertDispatched(InsufficientStock::class, function ($event) {
-            return $event->itemId === $this->itemId2
-                && $event->requestedQuantity === 100.0
-                && $event->availableQuantity === 50.0;
-        });
+        Event::assertDispatched(InsufficientStock::class, fn ($event): bool => $event->itemId === $this->itemId2
+            && $event->requestedQuantity === 100.0
+            && $event->availableQuantity === 50.0);
     });
 });
 
@@ -312,7 +306,8 @@ describe('UpdateJobReservations Action', function () {
  */
 function createMockJobForAction(string $itemId, float $quantity, string $jobId): JobContract
 {
-    return new class($itemId, $quantity, $jobId) implements JobContract {
+    return new class($itemId, $quantity, $jobId) implements JobContract
+    {
         public function __construct(
             private readonly string $itemId,
             private readonly float $quantity,
@@ -353,7 +348,8 @@ function createMockJobForAction(string $itemId, float $quantity, string $jobId):
  */
 function createMockJobWithItemsForAction(array $items, string $jobId): JobContract
 {
-    return new class($items, $jobId) implements JobContract {
+    return new class($items, $jobId) implements JobContract
+    {
         public function __construct(
             private readonly array $items,
             private readonly string $jobId,

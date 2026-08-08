@@ -15,7 +15,7 @@ use RobinsonRyan\Inventory\Stock\Models\Reservation;
 use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 use RobinsonRyan\Inventory\Stock\Services\StockService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->reportService = App::make(ReportService::class);
     $this->stockService = App::make(StockService::class);
     $this->reservationService = App::make(ReservationService::class);
@@ -30,8 +30,8 @@ beforeEach(function () {
     ));
 });
 
-describe('ReservationReport', function () {
-    it('generates reservation report', function () {
+describe('ReservationReport', function (): void {
+    it('generates reservation report', function (): void {
         $this->reservationService->reserve(new ReservationData(
             itemId: $this->item->id,
             jobType: 'WorkOrder',
@@ -40,17 +40,17 @@ describe('ReservationReport', function () {
             locationId: $this->location->id,
         ));
 
-        $report = new ReservationReport();
+        $report = new ReservationReport;
         $data = $this->reportService->generate($report);
 
         expect($data)->toBeInstanceOf(ReportData::class)
             ->and($data->title)->toBe('Reservation Report')
             ->and($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->item_sku)->toBe('TEST-001')
-            ->and((float) $data->rows->first()->quantity)->toBe(10.0);
+            ->and($data->rows->first()['item_sku'])->toBe('TEST-001')
+            ->and((float) $data->rows->first()['quantity'])->toBe(10.0);
     });
 
-    it('filters by job type', function () {
+    it('filters by job type', function (): void {
         $this->reservationService->reserve(new ReservationData(
             itemId: $this->item->id,
             jobType: 'WorkOrder',
@@ -69,10 +69,10 @@ describe('ReservationReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->job_type)->toBe('WorkOrder');
+            ->and($data->rows->first()['job_type'])->toBe('WorkOrder');
     });
 
-    it('filters by item', function () {
+    it('filters by item', function (): void {
         $item2 = Item::factory()->create(['sku' => 'TEST-002']);
 
         $this->stockService->addStock(new AddStockData(
@@ -99,10 +99,10 @@ describe('ReservationReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->item_sku)->toBe('TEST-001');
+            ->and($data->rows->first()['item_sku'])->toBe('TEST-001');
     });
 
-    it('excludes expired reservations by default', function () {
+    it('excludes expired reservations by default', function (): void {
         // Create a reservation that will expire
         $reservation = $this->reservationService->reserve(new ReservationData(
             itemId: $this->item->id,
@@ -123,7 +123,7 @@ describe('ReservationReport', function () {
         expect($data->rows)->toHaveCount(0);
     });
 
-    it('includes expired reservations when requested', function () {
+    it('includes expired reservations when requested', function (): void {
         $reservation = $this->reservationService->reserve(new ReservationData(
             itemId: $this->item->id,
             jobType: 'WorkOrder',
@@ -143,7 +143,7 @@ describe('ReservationReport', function () {
         expect($data->rows)->toHaveCount(1);
     });
 
-    it('calculates summary counts correctly', function () {
+    it('calculates summary counts correctly', function (): void {
         // Create active reservation
         $this->reservationService->reserve(new ReservationData(
             itemId: $this->item->id,
@@ -161,7 +161,7 @@ describe('ReservationReport', function () {
         ));
         $this->reservationService->fulfill($fulfilledReservation->id);
 
-        $report = new ReservationReport();
+        $report = new ReservationReport;
         $data = $this->reportService->generate($report);
 
         expect($data->getSummary('total_reservations'))->toBe(2)

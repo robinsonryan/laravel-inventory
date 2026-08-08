@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Reporting\Exporters;
 
+use DateTime;
+use DateTimeInterface;
+use Exception;
 use RobinsonRyan\Inventory\Reporting\Contracts\ExporterInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
+use RuntimeException;
 
-final class CsvExporter implements ExporterInterface
+final readonly class CsvExporter implements ExporterInterface
 {
     public function __construct(
-        private readonly string $delimiter = ',',
-        private readonly string $enclosure = '"',
-        private readonly bool $includeHeaders = true,
+        private string $delimiter = ',',
+        private string $enclosure = '"',
+        private bool $includeHeaders = true,
     ) {}
 
     public function export(ReportData $data): string
@@ -21,7 +25,7 @@ final class CsvExporter implements ExporterInterface
         $output = fopen('php://temp', 'r+');
 
         if ($output === false) {
-            throw new \RuntimeException('Unable to create temporary file for CSV export');
+            throw new RuntimeException('Unable to create temporary file for CSV export');
         }
 
         // Write header row
@@ -117,14 +121,14 @@ final class CsvExporter implements ExporterInterface
 
     private function formatDate(mixed $value): string
     {
-        if ($value instanceof \DateTimeInterface) {
+        if ($value instanceof DateTimeInterface) {
             return $value->format('Y-m-d');
         }
 
         if (is_string($value) && $value !== '') {
             try {
-                return (new \DateTime($value))->format('Y-m-d');
-            } catch (\Exception) {
+                return (new DateTime($value))->format('Y-m-d');
+            } catch (Exception) {
                 return $value;
             }
         }
@@ -134,14 +138,14 @@ final class CsvExporter implements ExporterInterface
 
     private function formatDatetime(mixed $value): string
     {
-        if ($value instanceof \DateTimeInterface) {
+        if ($value instanceof DateTimeInterface) {
             return $value->format('Y-m-d H:i:s');
         }
 
         if (is_string($value) && $value !== '') {
             try {
-                return (new \DateTime($value))->format('Y-m-d H:i:s');
-            } catch (\Exception) {
+                return (new DateTime($value))->format('Y-m-d H:i:s');
+            } catch (Exception) {
                 return $value;
             }
         }

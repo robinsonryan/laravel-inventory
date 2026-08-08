@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Forecasting\Actions;
 
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use RobinsonRyan\Inventory\Forecasting\Models\ReorderRecommendation;
 
 final class CreatePurchaseOrderFromMultipleRecommendations
@@ -16,12 +17,12 @@ final class CreatePurchaseOrderFromMultipleRecommendations
      *
      * @param  array<int, string>  $recommendationIds
      *
-     * @throws \InvalidArgumentException If any recommendation is invalid
+     * @throws InvalidArgumentException If any recommendation is invalid
      */
     public function execute(array $recommendationIds, string $vendorId): Model
     {
-        if (empty($recommendationIds)) {
-            throw new \InvalidArgumentException('At least one recommendation ID must be provided.');
+        if ($recommendationIds === []) {
+            throw new InvalidArgumentException('At least one recommendation ID must be provided.');
         }
 
         $recommendations = $this->getRecommendationModel()::query()
@@ -29,20 +30,20 @@ final class CreatePurchaseOrderFromMultipleRecommendations
             ->get();
 
         if ($recommendations->count() !== count($recommendationIds)) {
-            throw new \InvalidArgumentException('One or more recommendation IDs are invalid.');
+            throw new InvalidArgumentException('One or more recommendation IDs are invalid.');
         }
 
         // Validate all recommendations are pending
         foreach ($recommendations as $recommendation) {
             if ($recommendation->isActioned()) {
-                throw new \InvalidArgumentException(
-                    "Recommendation {$recommendation->id} has already been actioned."
+                throw new InvalidArgumentException(
+                    "Recommendation {$recommendation->id} has already been actioned.",
                 );
             }
 
             if ($recommendation->isDismissed()) {
-                throw new \InvalidArgumentException(
-                    "Recommendation {$recommendation->id} has been dismissed."
+                throw new InvalidArgumentException(
+                    "Recommendation {$recommendation->id} has been dismissed.",
                 );
             }
         }
@@ -58,14 +59,14 @@ final class CreatePurchaseOrderFromMultipleRecommendations
             // Create purchase order lines for each recommendation
             foreach ($recommendations as $recommendation) {
                 $this->getPurchaseOrderLineModel()::query()->create([
-                    'purchase_order_id' => $purchaseOrder->id,
+                    'purchase_order_id' => $purchaseOrder->getKey(),
                     'item_id' => $recommendation->item_id,
                     'quantity_ordered' => $recommendation->recommended_quantity,
                 ]);
 
                 // Mark recommendation as actioned
                 $recommendation->actioned_at = Carbon::now();
-                $recommendation->purchase_order_id = $purchaseOrder->id;
+                $recommendation->purchase_order_id = (string) $purchaseOrder->getKey();
                 $recommendation->save();
             }
 

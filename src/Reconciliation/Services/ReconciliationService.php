@@ -59,7 +59,7 @@ final class ReconciliationService
 
         foreach ($count->lines as $line) {
             if ($line->variance !== null && (float) $line->variance !== 0.0) {
-                $costBasis = $line->stock?->cost_basis ?? 0;
+                $costBasis = $line->stock->cost_basis ?? 0;
                 $total += (float) $line->variance * (float) $costBasis;
             }
         }
@@ -76,7 +76,7 @@ final class ReconciliationService
     {
         return $this->getCycleCountModel()::query()
             ->when($tenantId, fn ($q) => $q->where('tenant_id', $tenantId))
-            ->withTag(CycleCountStatusDefinition::$slug, 'pending')
+            ->withTagIn(CycleCountStatusDefinition::$slug, 'pending')
             ->with(['lines', 'location'])
             ->orderBy('completed_at', 'asc')
             ->get();
@@ -93,11 +93,7 @@ final class ReconciliationService
         }
 
         // Must be fully counted
-        if (! $count->isFullyCounted()) {
-            return false;
-        }
-
-        return true;
+        return $count->isFullyCounted();
     }
 
     /**
@@ -111,11 +107,7 @@ final class ReconciliationService
         }
 
         // Must have all lines counted
-        if (! $count->isFullyCounted()) {
-            return false;
-        }
-
-        return true;
+        return $count->isFullyCounted();
     }
 
     /**
@@ -136,7 +128,7 @@ final class ReconciliationService
     {
         return $this->getCycleCountModel()::query()
             ->when($tenantId, fn ($q) => $q->where('tenant_id', $tenantId))
-            ->withTagIn(CycleCountStatusDefinition::$slug, CycleCountStatusDefinition::OPEN)
+            ->withAnyTagIn(CycleCountStatusDefinition::$slug, CycleCountStatusDefinition::OPEN)
             ->with(['lines', 'location'])
             ->orderBy('created_at', 'desc')
             ->get();

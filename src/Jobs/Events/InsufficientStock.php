@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Jobs\Events;
 
-final class InsufficientStock
+final readonly class InsufficientStock
 {
     public function __construct(
-        public readonly string $jobType,
-        public readonly string $jobId,
-        public readonly string $itemId,
-        public readonly float $requestedQuantity,
-        public readonly float $availableQuantity,
+        public string $jobType,
+        public string $jobId,
+        public string $itemId,
+        public float $requestedQuantity,
+        public float $availableQuantity,
     ) {}
 }

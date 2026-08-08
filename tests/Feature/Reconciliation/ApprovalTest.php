@@ -7,13 +7,12 @@ use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Reconciliation\Actions\ApproveVariance;
 use RobinsonRyan\Inventory\Reconciliation\Actions\CancelCycleCount;
 use RobinsonRyan\Inventory\Reconciliation\Models\CycleCount;
-use RobinsonRyan\Inventory\Reconciliation\Models\CycleCountLine;
 use RobinsonRyan\Inventory\Reconciliation\Models\VarianceAdjustment;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->location = Location::factory()->create();
     $this->item = Item::factory()->create();
     $this->stock = Stock::factory()
@@ -24,8 +23,8 @@ beforeEach(function () {
         ->create();
 });
 
-describe('ApproveVariance', function () {
-    it('approves variances', function () {
+describe('ApproveVariance', function (): void {
+    it('approves variances', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->pending()
@@ -48,7 +47,7 @@ describe('ApproveVariance', function () {
             ->and($approved->approved_at)->not->toBeNull();
     });
 
-    it('creates adjustment movements for variances', function () {
+    it('creates adjustment movements for variances', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->pending()
@@ -77,7 +76,7 @@ describe('ApproveVariance', function () {
             ->and($movement->type)->toBe('adjustment');
     });
 
-    it('updates stock quantity after approval', function () {
+    it('updates stock quantity after approval', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->pending()
@@ -100,7 +99,7 @@ describe('ApproveVariance', function () {
         expect((float) $this->stock->quantity)->toBe(95.0);
     });
 
-    it('tracks cost impact', function () {
+    it('tracks cost impact', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->pending()
@@ -125,7 +124,7 @@ describe('ApproveVariance', function () {
             ->and((float) $adjustment->cost_impact)->toBe(-50.0); // -5 units * $10 cost
     });
 
-    it('creates variance adjustment record', function () {
+    it('creates variance adjustment record', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->pending()
@@ -157,7 +156,7 @@ describe('ApproveVariance', function () {
             ->and($adjustment->stock_movement_id)->not->toBeNull();
     });
 
-    it('handles positive variance (found more)', function () {
+    it('handles positive variance (found more)', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->pending()
@@ -184,7 +183,7 @@ describe('ApproveVariance', function () {
             ->and((float) $adjustment->cost_impact)->toBe(100.0);
     });
 
-    it('does not create adjustment for zero variance', function () {
+    it('does not create adjustment for zero variance', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->pending()
@@ -209,7 +208,7 @@ describe('ApproveVariance', function () {
             ->count())->toBe(0);
     });
 
-    it('cannot approve draft count', function () {
+    it('cannot approve draft count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -221,7 +220,7 @@ describe('ApproveVariance', function () {
             ->toThrow(InvalidArgumentException::class);
     });
 
-    it('cannot approve in_progress count', function () {
+    it('cannot approve in_progress count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->inProgress()
@@ -233,7 +232,7 @@ describe('ApproveVariance', function () {
             ->toThrow(InvalidArgumentException::class);
     });
 
-    it('cannot approve already approved count', function () {
+    it('cannot approve already approved count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->approved()
@@ -246,8 +245,8 @@ describe('ApproveVariance', function () {
     });
 });
 
-describe('CancelCycleCount', function () {
-    it('cancels cycle count', function () {
+describe('CancelCycleCount', function (): void {
+    it('cancels cycle count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -260,7 +259,7 @@ describe('CancelCycleCount', function () {
             ->and($cancelled->metadata['cancellation_reason'])->toBe('No longer needed');
     });
 
-    it('can cancel draft count', function () {
+    it('can cancel draft count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -272,7 +271,7 @@ describe('CancelCycleCount', function () {
         expect($cancelled->status)->toBe('cancelled');
     });
 
-    it('can cancel in_progress count', function () {
+    it('can cancel in_progress count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->inProgress()
@@ -284,7 +283,7 @@ describe('CancelCycleCount', function () {
         expect($cancelled->status)->toBe('cancelled');
     });
 
-    it('can cancel pending count', function () {
+    it('can cancel pending count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->pending()
@@ -296,7 +295,7 @@ describe('CancelCycleCount', function () {
         expect($cancelled->status)->toBe('cancelled');
     });
 
-    it('cannot cancel approved count', function () {
+    it('cannot cancel approved count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->approved()
@@ -308,7 +307,7 @@ describe('CancelCycleCount', function () {
             ->toThrow(InvalidArgumentException::class);
     });
 
-    it('cannot cancel already cancelled count', function () {
+    it('cannot cancel already cancelled count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->cancelled()
@@ -320,7 +319,7 @@ describe('CancelCycleCount', function () {
             ->toThrow(InvalidArgumentException::class);
     });
 
-    it('records cancellation timestamp in metadata', function () {
+    it('records cancellation timestamp in metadata', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -333,8 +332,8 @@ describe('CancelCycleCount', function () {
     });
 });
 
-describe('VarianceAdjustment Model', function () {
-    it('identifies positive variance', function () {
+describe('VarianceAdjustment Model', function (): void {
+    it('identifies positive variance', function (): void {
         $adjustment = new VarianceAdjustment([
             'variance' => 10,
         ]);
@@ -343,7 +342,7 @@ describe('VarianceAdjustment Model', function () {
             ->and($adjustment->isNegativeVariance())->toBeFalse();
     });
 
-    it('identifies negative variance', function () {
+    it('identifies negative variance', function (): void {
         $adjustment = new VarianceAdjustment([
             'variance' => -5,
         ]);

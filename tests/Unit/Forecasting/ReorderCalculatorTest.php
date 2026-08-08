@@ -5,18 +5,18 @@ declare(strict_types=1);
 use RobinsonRyan\Inventory\Forecasting\Services\DemandAnalyzer;
 use RobinsonRyan\Inventory\Forecasting\Services\ReorderCalculator;
 
-describe('ReorderCalculator Unit Tests', function () {
-    it('can be instantiated with dependencies', function () {
-        $demandAnalyzer = new DemandAnalyzer();
+describe('ReorderCalculator Unit Tests', function (): void {
+    it('can be instantiated with dependencies', function (): void {
+        $demandAnalyzer = new DemandAnalyzer;
         $calculator = new ReorderCalculator($demandAnalyzer);
 
         expect($calculator)->toBeInstanceOf(ReorderCalculator::class);
     });
 
-    it('returns default reorder quantity for items with no usage', function () {
-        $demandAnalyzer = new DemandAnalyzer();
+    it('returns default reorder quantity for items with no usage', function (): void {
+        $demandAnalyzer = new DemandAnalyzer;
         $calculator = new ReorderCalculator($demandAnalyzer);
-        $itemId = (string) \Symfony\Component\Uid\Uuid::v7();
+        $itemId = (string) Symfony\Component\Uid\Uuid::v7();
 
         $quantity = $calculator->calculateReorderQuantity($itemId);
 
@@ -24,10 +24,10 @@ describe('ReorderCalculator Unit Tests', function () {
         expect($quantity)->toBeGreaterThanOrEqual(10);
     });
 
-    it('returns null stockout date for items with no usage', function () {
-        $demandAnalyzer = new DemandAnalyzer();
+    it('returns null stockout date for items with no usage', function (): void {
+        $demandAnalyzer = new DemandAnalyzer;
         $calculator = new ReorderCalculator($demandAnalyzer);
-        $itemId = (string) \Symfony\Component\Uid\Uuid::v7();
+        $itemId = (string) Symfony\Component\Uid\Uuid::v7();
 
         $stockoutDate = $calculator->estimateStockoutDate($itemId);
 
@@ -37,20 +37,20 @@ describe('ReorderCalculator Unit Tests', function () {
         expect($stockoutDate)->not->toBeNull();
     });
 
-    it('returns null recommendation for non-existent items', function () {
-        $demandAnalyzer = new DemandAnalyzer();
+    it('returns null recommendation for non-existent items', function (): void {
+        $demandAnalyzer = new DemandAnalyzer;
         $calculator = new ReorderCalculator($demandAnalyzer);
-        $itemId = (string) \Symfony\Component\Uid\Uuid::v7();
+        $itemId = (string) Symfony\Component\Uid\Uuid::v7();
 
         $recommendation = $calculator->generateRecommendation($itemId);
 
         expect($recommendation)->toBeNull();
     });
 
-    it('returns zero reorder point for items with no usage and no min_stock_level', function () {
-        $demandAnalyzer = new DemandAnalyzer();
+    it('returns zero reorder point for items with no usage and no min_stock_level', function (): void {
+        $demandAnalyzer = new DemandAnalyzer;
         $calculator = new ReorderCalculator($demandAnalyzer);
-        $itemId = (string) \Symfony\Component\Uid\Uuid::v7();
+        $itemId = (string) Symfony\Component\Uid\Uuid::v7();
 
         $reorderPoint = $calculator->calculateReorderPoint($itemId);
 

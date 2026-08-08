@@ -11,11 +11,11 @@ use RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrder;
 use RobinsonRyan\Inventory\Purchasing\Models\Receipt;
 use RobinsonRyan\Inventory\Purchasing\Services\PurchaseOrderService;
 
-final class ReceiveMultipleLines
+final readonly class ReceiveMultipleLines
 {
     public function __construct(
-        private readonly PurchaseOrderService $service,
-        private readonly ReceiveLine $receiveLine,
+        private PurchaseOrderService $service,
+        private ReceiveLine $receiveLine,
     ) {}
 
     /**
@@ -25,7 +25,7 @@ final class ReceiveMultipleLines
      */
     public function execute(PurchaseOrder $po, array $lines): Receipt
     {
-        if (empty($lines)) {
+        if ($lines === []) {
             throw new InvalidArgumentException('No lines provided for receiving.');
         }
 
@@ -56,7 +56,7 @@ final class ReceiveMultipleLines
             // Update PO status
             $this->service->updateStatus($po);
 
-            return $receipt->fresh(['lines', 'purchaseOrder']);
+            return $receipt->fresh(['lines', 'purchaseOrder']) ?? $receipt;
         });
     }
 

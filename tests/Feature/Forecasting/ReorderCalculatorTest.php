@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Carbon\Carbon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\App;
 use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Forecasting\Models\ReorderRecommendation;
@@ -12,14 +12,14 @@ use RobinsonRyan\Inventory\Stock\Data\RemoveStockData;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Services\StockService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->reorderCalculator = App::make(ReorderCalculator::class);
     $this->stockService = App::make(StockService::class);
     $this->location = Location::factory()->warehouse()->create();
 });
 
-describe('ReorderCalculator', function () {
-    it('calculates reorder point using min_stock_level when set', function () {
+describe('ReorderCalculator', function (): void {
+    it('calculates reorder point using min_stock_level when set', function (): void {
         $item = Item::factory()->create([
             'min_stock_level' => 50,
             'lead_time_days' => 5,
@@ -30,7 +30,7 @@ describe('ReorderCalculator', function () {
         expect($reorderPoint)->toBe(50);
     });
 
-    it('calculates reorder point using formula when min_stock_level is null', function () {
+    it('calculates reorder point using formula when min_stock_level is null', function (): void {
         $item = Item::factory()->create([
             'min_stock_level' => null,
             'lead_time_days' => 5,
@@ -65,7 +65,7 @@ describe('ReorderCalculator', function () {
             ->and($reorderPoint)->toBeLessThanOrEqual(45);
     });
 
-    it('calculates reorder quantity', function () {
+    it('calculates reorder quantity', function (): void {
         $item = Item::factory()->create([
             'min_stock_level' => 50,
             'lead_time_days' => 5,
@@ -100,7 +100,7 @@ describe('ReorderCalculator', function () {
             ->and($reorderQuantity)->toBeLessThan(80);
     });
 
-    it('estimates stockout date', function () {
+    it('estimates stockout date', function (): void {
         $item = Item::factory()->create([
             'lead_time_days' => 5,
         ]);
@@ -133,7 +133,7 @@ describe('ReorderCalculator', function () {
             ->and($stockoutDate->toDateString())->toBe(Carbon::now()->toDateString());
     });
 
-    it('identifies items below reorder point', function () {
+    it('identifies items below reorder point', function (): void {
         // Item 1: below reorder point
         $itemBelow = Item::factory()->create([
             'min_stock_level' => 100,
@@ -164,7 +164,7 @@ describe('ReorderCalculator', function () {
             ->and($itemsBelowReorderPoint->first()->id)->toBe($itemBelow->id);
     });
 
-    it('generates recommendation', function () {
+    it('generates recommendation', function (): void {
         $item = Item::factory()->create([
             'min_stock_level' => 100,
             'lead_time_days' => 5,
@@ -189,7 +189,7 @@ describe('ReorderCalculator', function () {
             ->and($recommendation->generated_at)->not->toBeNull();
     });
 
-    it('does not generate duplicate recommendation', function () {
+    it('does not generate duplicate recommendation', function (): void {
         $item = Item::factory()->create([
             'min_stock_level' => 100,
             'is_active' => true,
@@ -214,7 +214,7 @@ describe('ReorderCalculator', function () {
         expect($count)->toBe(1);
     });
 
-    it('does not generate recommendation for inactive items', function () {
+    it('does not generate recommendation for inactive items', function (): void {
         $item = Item::factory()->inactive()->create([
             'min_stock_level' => 100,
         ]);

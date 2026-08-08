@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Forecasting\Services;
 
-use Carbon\Carbon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 
 final class DemandAnalyzer
@@ -17,6 +18,8 @@ final class DemandAnalyzer
      */
     public function calculateAverageDailyUsage(string $itemId, ?int $days = 90): float
     {
+        $days ??= 90;
+
         $from = Carbon::now()->subDays($days);
         $to = Carbon::now();
 
@@ -34,6 +37,8 @@ final class DemandAnalyzer
      */
     public function calculateTrend(string $itemId, ?int $days = 90): string
     {
+        $days ??= 90;
+
         $halfPeriod = (int) floor($days / 2);
 
         // Get usage for first half of period
@@ -94,13 +99,9 @@ final class DemandAnalyzer
     public function getConsumptionByPeriod(
         string $itemId,
         string $period = 'daily',
-        ?int $periods = 30
+        ?int $periods = 30,
     ): Collection {
-        $dateFormat = match ($period) {
-            'weekly' => '%Y-%W',
-            'monthly' => '%Y-%m',
-            default => '%Y-%m-%d',
-        };
+        $periodExpression = $this->periodExpression($period);
 
         $daysPerPeriod = match ($period) {
             'weekly' => 7,
@@ -111,7 +112,7 @@ final class DemandAnalyzer
         $from = Carbon::now()->subDays($periods * $daysPerPeriod);
 
         $results = $this->getMovementModel()::query()
-            ->selectRaw("DATE_FORMAT(created_at, '{$dateFormat}') as period, SUM(ABS(quantity)) as consumption")
+            ->selectRaw("{$periodExpression} as period, SUM(ABS(quantity)) as consumption")
             ->where('item_id', $itemId)
             ->where('created_at', '>=', $from)
             ->whereNotNull('from_location_id')
@@ -120,10 +121,40 @@ final class DemandAnalyzer
             ->orderBy('period')
             ->get();
 
-        return $results->map(fn ($row) => [
-            'period' => $row->period,
-            'consumption' => (float) $row->consumption,
-        ]);
+        return $results->map(fn (StockMovement $row): array => [
+            'period' => (string) $row->getAttribute('period'),
+            'consumption' => (float) $row->getAttribute('consumption'),
+        ])->values();
+    }
+
+    /**
+     * Build a driver-appropriate SQL expression that buckets `created_at` into a
+     * period label. DATE_FORMAT() is MySQL-only; this package also runs on
+     * PostgreSQL (its own DDEV) and SQLite (the test suite).
+     *
+     * @return literal-string
+     */
+    private function periodExpression(string $period): string
+    {
+        $driver = DB::connection()->getDriverName();
+
+        return match ($driver) {
+            'pgsql' => match ($period) {
+                'weekly' => "to_char(created_at, 'IYYY-IW')",
+                'monthly' => "to_char(created_at, 'YYYY-MM')",
+                default => "to_char(created_at, 'YYYY-MM-DD')",
+            },
+            'sqlite' => match ($period) {
+                'weekly' => "strftime('%Y-%W', created_at)",
+                'monthly' => "strftime('%Y-%m', created_at)",
+                default => "strftime('%Y-%m-%d', created_at)",
+            },
+            default => match ($period) {
+                'weekly' => "DATE_FORMAT(created_at, '%Y-%W')",
+                'monthly' => "DATE_FORMAT(created_at, '%Y-%m')",
+                default => "DATE_FORMAT(created_at, '%Y-%m-%d')",
+            },
+        };
     }
 
     /**

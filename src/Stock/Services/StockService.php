@@ -17,13 +17,13 @@ use RobinsonRyan\Inventory\Stock\Data\TransferData;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 
-final class StockService
+final readonly class StockService
 {
     public function __construct(
-        private readonly AddStock $addStock,
-        private readonly RemoveStock $removeStock,
-        private readonly TransferStock $transferStock,
-        private readonly AdjustStock $adjustStock,
+        private AddStock $addStock,
+        private RemoveStock $removeStock,
+        private TransferStock $transferStock,
+        private AdjustStock $adjustStock,
     ) {}
 
     /**
@@ -64,7 +64,7 @@ final class StockService
      */
     public function addStock(AddStockData $data): StockMovement
     {
-        return DB::transaction(fn () => $this->addStock->execute($data));
+        return DB::transaction(fn (): StockMovement => $this->addStock->execute($data));
     }
 
     /**
@@ -72,7 +72,7 @@ final class StockService
      */
     public function removeStock(RemoveStockData $data): StockMovement
     {
-        return DB::transaction(fn () => $this->removeStock->execute($data));
+        return DB::transaction(fn (): StockMovement => $this->removeStock->execute($data));
     }
 
     /**
@@ -80,7 +80,7 @@ final class StockService
      */
     public function transfer(TransferData $data): StockMovement
     {
-        return DB::transaction(fn () => $this->transferStock->execute($data));
+        return DB::transaction(fn (): StockMovement => $this->transferStock->execute($data));
     }
 
     /**
@@ -88,7 +88,7 @@ final class StockService
      */
     public function adjust(AdjustStockData $data): StockMovement
     {
-        return DB::transaction(fn () => $this->adjustStock->execute($data));
+        return DB::transaction(fn (): StockMovement => $this->adjustStock->execute($data));
     }
 
     /**
@@ -124,7 +124,7 @@ final class StockService
         string $itemId,
         string $locationId,
         ?string $lotNumber = null,
-        ?string $serialNumber = null
+        ?string $serialNumber = null,
     ): Stock {
         /** @var Stock */
         return $this->getStockModel()::query()->firstOrCreate(
@@ -137,7 +137,7 @@ final class StockService
             [
                 'quantity' => 0,
                 'reserved_quantity' => 0,
-            ]
+            ],
         );
     }
 

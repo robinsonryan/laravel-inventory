@@ -11,6 +11,7 @@ use RobinsonRyan\Inventory\Concerns\BelongsToTenant;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 
 /**
  * @property string $id
@@ -75,8 +76,8 @@ final class VarianceAdjustment extends Model
     public function cycleCount(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.cycle_count', CycleCount::class),
-            'cycle_count_id'
+            ModelResolver::resolve('cycle_count', CycleCount::class),
+            'cycle_count_id',
         );
     }
 
@@ -86,8 +87,8 @@ final class VarianceAdjustment extends Model
     public function cycleCountLine(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.cycle_count_line', CycleCountLine::class),
-            'cycle_count_line_id'
+            ModelResolver::resolve('cycle_count_line', CycleCountLine::class),
+            'cycle_count_line_id',
         );
     }
 
@@ -97,8 +98,8 @@ final class VarianceAdjustment extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.item', Item::class),
-            'item_id'
+            ModelResolver::resolveAny('item', Item::class),
+            'item_id',
         );
     }
 
@@ -108,8 +109,8 @@ final class VarianceAdjustment extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.location', Location::class),
-            'location_id'
+            ModelResolver::resolve('location', Location::class),
+            'location_id',
         );
     }
 
@@ -119,8 +120,8 @@ final class VarianceAdjustment extends Model
     public function stockMovement(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.stock_movement', StockMovement::class),
-            'stock_movement_id'
+            ModelResolver::resolve('stock_movement', StockMovement::class),
+            'stock_movement_id',
         );
     }
 

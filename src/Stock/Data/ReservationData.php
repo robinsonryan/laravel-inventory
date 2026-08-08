@@ -48,6 +48,6 @@ final readonly class ReservationData
             'line_id' => $this->lineId,
             'expiry_hours' => $this->expiryHours,
             'notes' => $this->notes,
-        ], fn ($value) => $value !== null);
+        ], fn (float|int|string|null $value): bool => $value !== null);
     }
 }

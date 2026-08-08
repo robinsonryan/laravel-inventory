@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace RobinsonRyan\Inventory\Reporting\Reports;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
+use RobinsonRyan\Inventory\Support\TableResolver;
 
 final class VarianceReport implements ReportInterface
 {
@@ -21,10 +23,10 @@ final class VarianceReport implements ReportInterface
 
     public function generate(): ReportData
     {
-        $cycleCountsTable = config('inventory.tables.cycle_counts', 'cycle_counts');
-        $cycleCountLinesTable = config('inventory.tables.cycle_count_lines', 'cycle_count_lines');
-        $itemsTable = config('inventory.tables.items', 'items');
-        $locationsTable = config('inventory.tables.locations', 'locations');
+        $cycleCountsTable = TableResolver::resolve('cycle_counts', 'cycle_counts');
+        $cycleCountLinesTable = TableResolver::resolve('cycle_count_lines', 'cycle_count_lines');
+        $itemsTable = TableResolver::resolve('items', 'items');
+        $locationsTable = TableResolver::resolve('locations', 'locations');
 
         $query = DB::table($cycleCountLinesTable)
             ->join($cycleCountsTable, "{$cycleCountLinesTable}.cycle_count_id", '=', "{$cycleCountsTable}.id")
@@ -48,11 +50,11 @@ final class VarianceReport implements ReportInterface
             ->whereNotNull("{$cycleCountsTable}.approved_at")
             ->orderByDesc("{$cycleCountsTable}.approved_at");
 
-        if ($this->fromDate !== null) {
+        if ($this->fromDate instanceof Carbon) {
             $query->where("{$cycleCountsTable}.approved_at", '>=', $this->fromDate->startOfDay());
         }
 
-        if ($this->toDate !== null) {
+        if ($this->toDate instanceof Carbon) {
             $query->where("{$cycleCountsTable}.approved_at", '<=', $this->toDate->endOfDay());
         }
 
@@ -64,7 +66,10 @@ final class VarianceReport implements ReportInterface
             $query->where("{$cycleCountLinesTable}.item_id", $this->itemId);
         }
 
-        $rows = $query->get();
+        // Normalise the raw stdClass result rows to arrays once, here, rather
+        // than leaving every exporter to cast defensively.
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = $query->get()->map(fn (object $row): array => (array) $row);
 
         // Calculate summary
         $totalVariances = $rows->count();
@@ -100,7 +105,7 @@ final class VarianceReport implements ReportInterface
      */
     public function getColumns(): array
     {
-        return array_map(fn (ColumnDefinition $col) => $col->toArray(), $this->getColumnDefinitions());
+        return array_map(fn (ColumnDefinition $col): array => $col->toArray(), $this->getColumnDefinitions());
     }
 
     /**

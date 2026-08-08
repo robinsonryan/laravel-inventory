@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Carbon\Carbon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\App;
 use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Forecasting\Services\DemandAnalyzer;
@@ -11,15 +11,15 @@ use RobinsonRyan\Inventory\Stock\Data\RemoveStockData;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Services\StockService;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->demandAnalyzer = App::make(DemandAnalyzer::class);
     $this->stockService = App::make(StockService::class);
     $this->location = Location::factory()->warehouse()->create();
     $this->item = Item::factory()->create();
 });
 
-describe('DemandAnalyzer', function () {
-    it('calculates average daily usage', function () {
+describe('DemandAnalyzer', function (): void {
+    it('calculates average daily usage', function (): void {
         // Add initial stock
         $this->stockService->addStock(new AddStockData(
             itemId: $this->item->id,
@@ -48,7 +48,7 @@ describe('DemandAnalyzer', function () {
             ->and($averageDailyUsage)->toBeLessThanOrEqual(1.1);
     });
 
-    it('detects increasing trend', function () {
+    it('detects increasing trend', function (): void {
         // Add initial stock
         $this->stockService->addStock(new AddStockData(
             itemId: $this->item->id,
@@ -87,7 +87,7 @@ describe('DemandAnalyzer', function () {
         expect($trend)->toBe('increasing');
     });
 
-    it('detects decreasing trend', function () {
+    it('detects decreasing trend', function (): void {
         // Add initial stock
         $this->stockService->addStock(new AddStockData(
             itemId: $this->item->id,
@@ -126,7 +126,7 @@ describe('DemandAnalyzer', function () {
         expect($trend)->toBe('decreasing');
     });
 
-    it('forecasts future demand', function () {
+    it('forecasts future demand', function (): void {
         // Add initial stock
         $this->stockService->addStock(new AddStockData(
             itemId: $this->item->id,
@@ -155,7 +155,7 @@ describe('DemandAnalyzer', function () {
             ->and($forecast)->toBeLessThan(110);
     });
 
-    it('handles items with no history', function () {
+    it('handles items with no history', function (): void {
         $averageDailyUsage = $this->demandAnalyzer->calculateAverageDailyUsage($this->item->id);
 
         expect($averageDailyUsage)->toBe(0.0);

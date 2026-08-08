@@ -11,10 +11,10 @@ use RobinsonRyan\Inventory\Jobs\Events\PartsReserved;
 use RobinsonRyan\Inventory\Stock\Data\ReservationData;
 use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 
-final class ReserveOnJobCreated
+final readonly class ReserveOnJobCreated
 {
     public function __construct(
-        private readonly ReservationService $reservationService,
+        private ReservationService $reservationService,
     ) {}
 
     public function handle(object $event): void
@@ -26,7 +26,7 @@ final class ReserveOnJobCreated
         }
 
         $reservations = [];
-        $jobType = get_class($job);
+        $jobType = $job::class;
         $jobId = $job->getInventoryKey();
 
         foreach ($job->getItemsToReserve() as $item) {

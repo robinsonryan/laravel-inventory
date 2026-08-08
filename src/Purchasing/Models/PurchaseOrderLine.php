@@ -12,6 +12,7 @@ use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Database\Factories\Purchasing\PurchaseOrderLineFactory;
 use RobinsonRyan\Inventory\Stock\Models\Location;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 
 /**
  * @property string $id
@@ -35,7 +36,9 @@ use RobinsonRyan\Inventory\Stock\Models\Location;
  */
 final class PurchaseOrderLine extends Model
 {
+    /** @use HasFactory<PurchaseOrderLineFactory> */
     use HasFactory;
+
     use HasUuid7;
 
     protected $fillable = [
@@ -78,8 +81,8 @@ final class PurchaseOrderLine extends Model
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.purchase_order', PurchaseOrder::class),
-            'purchase_order_id'
+            ModelResolver::resolve('purchase_order', PurchaseOrder::class),
+            'purchase_order_id',
         );
     }
 
@@ -89,8 +92,8 @@ final class PurchaseOrderLine extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.item', Item::class),
-            'item_id'
+            ModelResolver::resolveAny('item', Item::class),
+            'item_id',
         );
     }
 
@@ -100,8 +103,8 @@ final class PurchaseOrderLine extends Model
     public function destinationLocation(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.location', Location::class),
-            'destination_location_id'
+            ModelResolver::resolve('location', Location::class),
+            'destination_location_id',
         );
     }
 
@@ -112,7 +115,7 @@ final class PurchaseOrderLine extends Model
     {
         return $this->hasMany(
             ReceiptLine::class,
-            'purchase_order_line_id'
+            'purchase_order_line_id',
         );
     }
 

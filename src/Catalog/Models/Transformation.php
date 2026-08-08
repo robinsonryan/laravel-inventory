@@ -15,7 +15,7 @@ use RobinsonRyan\Inventory\Database\Factories\Catalog\TransformationFactory;
  * @property string $name
  * @property string|null $description
  * @property bool $is_active
- * @property array|null $metadata
+ * @property array<string, mixed>|null $metadata
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \Illuminate\Database\Eloquent\Collection<int, TransformationInput> $inputs
@@ -23,7 +23,9 @@ use RobinsonRyan\Inventory\Database\Factories\Catalog\TransformationFactory;
  */
 final class Transformation extends Model
 {
+    /** @use HasFactory<TransformationFactory> */
     use HasFactory;
+
     use HasUuid7;
 
     protected $fillable = [

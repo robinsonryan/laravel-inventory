@@ -7,9 +7,12 @@ namespace RobinsonRyan\Inventory\Forecasting\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Concerns\BelongsToTenant;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Database\Factories\Forecasting\ReorderRecommendationFactory;
+use RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrder;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 
 /**
  * @property string $id
@@ -29,7 +32,7 @@ use RobinsonRyan\Inventory\Database\Factories\Forecasting\ReorderRecommendationF
  * @property \Illuminate\Support\Carbon|null $actioned_at
  * @property \Illuminate\Support\Carbon|null $dismissed_at
  * @property string|null $purchase_order_id
- * @property array|null $metadata
+ * @property array<string, mixed>|null $metadata
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read Model $item
@@ -39,7 +42,10 @@ use RobinsonRyan\Inventory\Database\Factories\Forecasting\ReorderRecommendationF
 final class ReorderRecommendation extends Model
 {
     use BelongsToTenant;
+
+    /** @use HasFactory<ReorderRecommendationFactory> */
     use HasFactory;
+
     use HasUuid7;
 
     protected $fillable = [
@@ -111,7 +117,7 @@ final class ReorderRecommendation extends Model
      */
     public function item(): BelongsTo
     {
-        $itemModel = config('inventory.models.item');
+        $itemModel = ModelResolver::resolveAny('item', Item::class);
 
         return $this->belongsTo($itemModel, 'item_id');
     }
@@ -121,6 +127,7 @@ final class ReorderRecommendation extends Model
      */
     public function vendor(): BelongsTo
     {
+        /** @var class-string<Model> $vendorModel */
         $vendorModel = config('vendor.models.vendor', \RobinsonRyan\Vendor\Models\Vendor::class);
 
         return $this->belongsTo($vendorModel, 'vendor_id');
@@ -131,7 +138,7 @@ final class ReorderRecommendation extends Model
      */
     public function purchaseOrder(): BelongsTo
     {
-        $purchaseOrderModel = config('inventory.models.purchase_order');
+        $purchaseOrderModel = ModelResolver::resolveAny('purchase_order', PurchaseOrder::class);
 
         return $this->belongsTo($purchaseOrderModel, 'purchase_order_id');
     }

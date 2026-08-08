@@ -18,7 +18,7 @@ use RobinsonRyan\Inventory\Concerns\HasUuid7;
  * @property string $quantity_produced
  * @property Carbon $production_date
  * @property string|null $notes
- * @property array|null $metadata
+ * @property array<string, mixed>|null $metadata
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Item $item

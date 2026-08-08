@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Reporting\Exporters;
 
+use DateTime;
+use DateTimeInterface;
+use Exception;
+use InvalidArgumentException;
 use RobinsonRyan\Inventory\Reporting\Contracts\ExporterInterface;
-use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
 
 final class AccountingExporter implements ExporterInterface
@@ -23,7 +26,7 @@ final class AccountingExporter implements ExporterInterface
         return match ($this->format) {
             self::FORMAT_IIF => $this->exportIif($data),
             self::FORMAT_QIF => $this->exportQif($data),
-            default => throw new \InvalidArgumentException("Unsupported accounting format: {$this->format}"),
+            default => throw new InvalidArgumentException("Unsupported accounting format: {$this->format}"),
         };
     }
 
@@ -53,10 +56,6 @@ final class AccountingExporter implements ExporterInterface
         $lines[] = '!SPL\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO';
         $lines[] = '!ENDTRNS';
 
-        // Determine if this is a stock valuation report for proper formatting
-        $hasValue = $this->hasColumn($data, 'total_value');
-        $hasQuantity = $this->hasColumn($data, 'quantity');
-
         foreach ($data->rows as $row) {
             $rowArray = (array) $row;
 
@@ -72,7 +71,7 @@ final class AccountingExporter implements ExporterInterface
                 $date,
                 $this->escapeIifValue($itemName),
                 $amount,
-                $this->escapeIifValue($memo)
+                $this->escapeIifValue($memo),
             );
 
             // Split line (offset)
@@ -81,7 +80,7 @@ final class AccountingExporter implements ExporterInterface
                 $date,
                 $this->escapeIifValue($itemName),
                 -$amount,
-                $this->escapeIifValue($memo)
+                $this->escapeIifValue($memo),
             );
 
             $lines[] = 'ENDTRNS';
@@ -109,14 +108,14 @@ final class AccountingExporter implements ExporterInterface
             $memo = $this->buildMemo($rowArray);
 
             // Date
-            $lines[] = 'D' . $date;
+            $lines[] = 'D'.$date;
             // Amount
-            $lines[] = 'T' . number_format($amount, 2, '.', '');
+            $lines[] = 'T'.number_format($amount, 2, '.', '');
             // Payee
-            $lines[] = 'P' . $payee;
+            $lines[] = 'P'.$payee;
             // Memo
             if ($memo !== '') {
-                $lines[] = 'M' . $memo;
+                $lines[] = 'M'.$memo;
             }
             // End of record
             $lines[] = '^';
@@ -126,37 +125,25 @@ final class AccountingExporter implements ExporterInterface
     }
 
     /**
-     * Check if the report has a specific column.
-     */
-    private function hasColumn(ReportData $data, string $key): bool
-    {
-        foreach ($data->columns as $column) {
-            if ($column->key === $key) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Extract date from row data.
+     *
+     * @param  array<string, mixed>  $row
      */
     private function extractDate(array $row): string
     {
         $dateFields = ['order_date', 'created_at', 'approved_at', 'reserved_at'];
 
         foreach ($dateFields as $field) {
-            if (isset($row[$field]) && $row[$field] !== null) {
+            if (isset($row[$field])) {
                 $value = $row[$field];
 
-                if ($value instanceof \DateTimeInterface) {
+                if ($value instanceof DateTimeInterface) {
                     return $value->format('m/d/Y');
                 }
 
                 try {
-                    return (new \DateTime((string) $value))->format('m/d/Y');
-                } catch (\Exception) {
+                    return (new DateTime((string) $value))->format('m/d/Y');
+                } catch (Exception) {
                     continue;
                 }
             }
@@ -167,6 +154,8 @@ final class AccountingExporter implements ExporterInterface
 
     /**
      * Extract amount from row data.
+     *
+     * @param  array<string, mixed>  $row
      */
     private function extractAmount(array $row): float
     {
@@ -188,24 +177,26 @@ final class AccountingExporter implements ExporterInterface
 
     /**
      * Build a memo string from row data.
+     *
+     * @param  array<string, mixed>  $row
      */
     private function buildMemo(array $row): string
     {
         $parts = [];
 
         if (isset($row['item_sku'])) {
-            $parts[] = 'SKU: ' . $row['item_sku'];
+            $parts[] = 'SKU: '.$row['item_sku'];
         }
 
         if (isset($row['location_code'])) {
-            $parts[] = 'Location: ' . $row['location_code'];
+            $parts[] = 'Location: '.$row['location_code'];
         }
 
         if (isset($row['quantity'])) {
-            $parts[] = 'Qty: ' . $row['quantity'];
+            $parts[] = 'Qty: '.$row['quantity'];
         }
 
-        if (isset($row['notes']) && $row['notes'] !== null && $row['notes'] !== '') {
+        if (isset($row['notes']) && $row['notes'] !== '') {
             $parts[] = $row['notes'];
         }
 

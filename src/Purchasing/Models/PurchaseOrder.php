@@ -11,6 +11,7 @@ use RobinsonRyan\Inventory\Concerns\BelongsToTenant;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Database\Factories\Purchasing\PurchaseOrderFactory;
 use RobinsonRyan\Inventory\Purchasing\TagDefinitions\PurchaseOrderStatusDefinition;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 use RobinsonRyan\Taxon\HasTags;
 use RobinsonRyan\Vendor\Concerns\BelongsToVendor;
 
@@ -26,14 +27,14 @@ use RobinsonRyan\Vendor\Concerns\BelongsToVendor;
  * @property string $shipping
  * @property string $total
  * @property string|null $notes
- * @property array|null $shipping_address
- * @property array|null $metadata
+ * @property array<string, mixed>|null $shipping_address
+ * @property array<string, mixed>|null $metadata
  * @property \Illuminate\Support\Carbon|null $submitted_at
  * @property \Illuminate\Support\Carbon|null $cancelled_at
  * @property string|null $created_by
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read string|null $status
+ * @property string|null $status
  * @property-read \RobinsonRyan\Vendor\Models\Vendor $vendor
  * @property-read \Illuminate\Database\Eloquent\Collection<int, PurchaseOrderLine> $lines
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Receipt> $receipts
@@ -42,7 +43,10 @@ final class PurchaseOrder extends Model
 {
     use BelongsToTenant;
     use BelongsToVendor;
+
+    /** @use HasFactory<PurchaseOrderFactory> */
     use HasFactory;
+
     use HasTags;
     use HasUuid7;
 
@@ -100,8 +104,8 @@ final class PurchaseOrder extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(
-            config('inventory.models.purchase_order_line', PurchaseOrderLine::class),
-            'purchase_order_id'
+            ModelResolver::resolve('purchase_order_line', PurchaseOrderLine::class),
+            'purchase_order_id',
         )->orderBy('sort_order');
     }
 
@@ -111,8 +115,8 @@ final class PurchaseOrder extends Model
     public function receipts(): HasMany
     {
         return $this->hasMany(
-            config('inventory.models.receipt', Receipt::class),
-            'purchase_order_id'
+            ModelResolver::resolve('receipt', Receipt::class),
+            'purchase_order_id',
         );
     }
 

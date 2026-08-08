@@ -6,14 +6,9 @@ namespace RobinsonRyan\Inventory\Reconciliation\Actions;
 
 use InvalidArgumentException;
 use RobinsonRyan\Inventory\Reconciliation\Models\CycleCount;
-use RobinsonRyan\Inventory\Reconciliation\Services\ReconciliationService;
 
 final class CompleteCounting
 {
-    public function __construct(
-        private readonly ReconciliationService $service,
-    ) {}
-
     /**
      * Mark counting as complete, ready for approval.
      */
@@ -27,7 +22,7 @@ final class CompleteCounting
         $count->completed_at = now();
         $count->save();
 
-        return $count->fresh(['lines', 'location']);
+        return $count->fresh(['lines', 'location']) ?? $count;
     }
 
     /**
@@ -39,18 +34,19 @@ final class CompleteCounting
             throw new InvalidArgumentException(
                 sprintf(
                     'Cannot complete cycle count in status "%s". Count must be "in_progress".',
-                    $count->status
-                )
+                    $count->status,
+                ),
             );
         }
 
         if (! $count->isFullyCounted()) {
             $uncountedLines = $count->lines()->whereNull('counted_at')->count();
+
             throw new InvalidArgumentException(
                 sprintf(
                     'Cannot complete cycle count. %d line(s) have not been counted.',
-                    $uncountedLines
-                )
+                    $uncountedLines,
+                ),
             );
         }
     }

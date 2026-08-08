@@ -8,10 +8,10 @@ use Illuminate\Support\Collection;
 use RobinsonRyan\Inventory\Forecasting\Models\ReorderRecommendation;
 use RobinsonRyan\Inventory\Forecasting\Services\ReorderCalculator;
 
-final class GenerateRecommendations
+final readonly class GenerateRecommendations
 {
     public function __construct(
-        private readonly ReorderCalculator $reorderCalculator,
+        private ReorderCalculator $reorderCalculator,
     ) {}
 
     /**
@@ -31,7 +31,7 @@ final class GenerateRecommendations
         foreach ($itemIds as $itemId) {
             $recommendation = $this->reorderCalculator->generateRecommendation($itemId);
 
-            if ($recommendation !== null) {
+            if ($recommendation instanceof ReorderRecommendation) {
                 $recommendations->push($recommendation);
             }
         }

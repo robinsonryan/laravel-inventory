@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Reconciliation\Actions;
 
+use DateTimeInterface;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -14,10 +15,10 @@ use RobinsonRyan\Inventory\Reconciliation\Services\ReconciliationService;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 
-final class ApproveVariance
+final readonly class ApproveVariance
 {
     public function __construct(
-        private readonly ReconciliationService $service,
+        private ReconciliationService $service,
     ) {}
 
     /**
@@ -30,8 +31,8 @@ final class ApproveVariance
             throw new InvalidArgumentException(
                 sprintf(
                     'Cannot approve cycle count in status "%s". Count must be "pending" and fully counted.',
-                    $count->status
-                )
+                    $count->status,
+                ),
             );
         }
 
@@ -53,7 +54,7 @@ final class ApproveVariance
             $count->approved_by = $actorId;
             $count->save();
 
-            return $count->fresh(['lines', 'adjustments', 'location']);
+            return $count->fresh(['lines', 'adjustments', 'location']) ?? $count;
         });
     }
 
@@ -66,7 +67,7 @@ final class ApproveVariance
         ?string $reason,
         ?string $actorId,
         ?string $actorType,
-        \DateTimeInterface $now
+        DateTimeInterface $now,
     ): void {
         $variance = (float) $line->variance;
 
@@ -86,7 +87,7 @@ final class ApproveVariance
                 [
                     'quantity' => 0,
                     'reserved_quantity' => 0,
-                ]
+                ],
             );
         }
 
@@ -102,7 +103,7 @@ final class ApproveVariance
         $notes = sprintf(
             'Cycle count adjustment (Count: %s)%s',
             $count->count_number,
-            $reason !== null ? " - Reason: {$reason}" : ''
+            $reason !== null ? " - Reason: {$reason}" : '',
         );
 
         /** @var StockMovement */
@@ -160,7 +161,7 @@ final class ApproveVariance
         $guard = config('inventory.actor.guard', 'web');
         $user = Auth::guard($guard)->user();
 
-        return $user !== null ? get_class($user) : null;
+        return $user !== null ? $user::class : null;
     }
 
     private function getActorId(): ?string

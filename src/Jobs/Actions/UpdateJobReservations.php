@@ -12,10 +12,10 @@ use RobinsonRyan\Inventory\Jobs\Events\PartsReserved;
 use RobinsonRyan\Inventory\Stock\Data\ReservationData;
 use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 
-final class UpdateJobReservations
+final readonly class UpdateJobReservations
 {
     public function __construct(
-        private readonly ReservationService $reservationService,
+        private ReservationService $reservationService,
     ) {}
 
     /**
@@ -28,12 +28,12 @@ final class UpdateJobReservations
      */
     public function execute(JobContract $job): void
     {
-        $jobType = get_class($job);
+        $jobType = $job::class;
         $jobId = $job->getInventoryKey();
 
         // Get current reservations indexed by line_id (or item_id if no line_id)
         $currentReservations = $this->reservationService->getForJob($jobType, $jobId)
-            ->filter(fn ($r) => in_array($r->status, ['pending', 'reserved', 'partial']))
+            ->filter(fn ($r): bool => in_array($r->status, ['pending', 'reserved', 'partial']))
             ->keyBy(fn ($r) => $r->line_id ?? $r->item_id);
 
         // Get desired items indexed by line_id (or item_id if no line_id)

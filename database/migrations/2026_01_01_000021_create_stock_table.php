@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use RobinsonRyan\Inventory\Support\SchemaSupport;
 
 return new class extends Migration
 {
     public function up(): void
     {
         Schema::create(config('inventory.tables.stock', 'stock'), function (Blueprint $table) {
-            $table->uuid('id')->primary()->default(DB::raw('uuidv7()'));
+            SchemaSupport::uuidPrimary($table);
             $table->uuid('tenant_id')->index();
             $table->uuid('item_id');
             $table->uuid('location_id');
@@ -27,7 +27,7 @@ return new class extends Migration
 
             $table->unique(
                 ['tenant_id', 'item_id', 'location_id', 'lot_number', 'serial_number'],
-                'stock_unique_item_location'
+                'stock_unique_item_location',
             );
 
             $table->index(['item_id', 'location_id']);

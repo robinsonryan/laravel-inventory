@@ -13,10 +13,10 @@ use RobinsonRyan\Inventory\Stock\Data\ReservationData;
 use RobinsonRyan\Inventory\Stock\Models\Reservation;
 use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 
-final class ReserveForJob
+final readonly class ReserveForJob
 {
     public function __construct(
-        private readonly ReservationService $reservationService,
+        private ReservationService $reservationService,
     ) {}
 
     /**
@@ -27,7 +27,7 @@ final class ReserveForJob
     public function execute(JobContract $job): Collection
     {
         $reservations = collect();
-        $jobType = get_class($job);
+        $jobType = $job::class;
         $jobId = $job->getInventoryKey();
 
         foreach ($job->getItemsToReserve() as $item) {

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use RobinsonRyan\Inventory\Forecasting\Data\ForecastData;
 
-describe('ForecastData', function () {
-    it('creates from constructor', function () {
+describe('ForecastData', function (): void {
+    it('creates from constructor', function (): void {
         $data = new ForecastData(
             itemId: 'item-123',
             averageDailyUsage: 3.5,
@@ -23,7 +23,7 @@ describe('ForecastData', function () {
             ->and($data->recommendedOrderQuantity)->toBe(50);
     });
 
-    it('creates from array', function () {
+    it('creates from array', function (): void {
         $data = ForecastData::fromArray([
             'item_id' => 'item-456',
             'average_daily_usage' => 2.5,
@@ -41,7 +41,7 @@ describe('ForecastData', function () {
             ->and($data->recommendedOrderQuantity)->toBe(100);
     });
 
-    it('converts to array', function () {
+    it('converts to array', function (): void {
         $data = new ForecastData(
             itemId: 'item-789',
             averageDailyUsage: 4.0,
@@ -63,7 +63,7 @@ describe('ForecastData', function () {
         ]);
     });
 
-    it('is readonly', function () {
+    it('is readonly', function (): void {
         $data = new ForecastData(
             itemId: 'item-123',
             averageDailyUsage: 3.0,
@@ -80,7 +80,7 @@ describe('ForecastData', function () {
         expect($reflection->isReadOnly())->toBeTrue();
     });
 
-    it('handles edge case values', function () {
+    it('handles edge case values', function (): void {
         $data = new ForecastData(
             itemId: 'item-edge',
             averageDailyUsage: 0.0,

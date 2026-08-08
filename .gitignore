@@ -7,6 +7,8 @@
 composer.lock
 .php-cs-fixer.cache
 .phpunit.result.cache
+/.phpstan.cache/
+.pint.cache
 
 # Claude harness symlinks (managed by link.sh, not committed)
 .claude/agents

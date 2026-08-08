@@ -28,10 +28,10 @@ use RobinsonRyan\Taxon\HasTags;
  * @property int|null $max_stock_level
  * @property int|null $lead_time_days
  * @property string|null $weight
- * @property array|null $dimensions
+ * @property array<string, mixed>|null $dimensions
  * @property bool $is_serialized
  * @property bool $is_active
- * @property array|null $metadata
+ * @property array<string, mixed>|null $metadata
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property string|null $category
@@ -45,7 +45,10 @@ use RobinsonRyan\Taxon\HasTags;
 final class Item extends Model
 {
     use BelongsToTenant;
+
+    /** @use HasFactory<ItemFactory> */
     use HasFactory;
+
     use HasTags;
     use HasUuid7;
 
@@ -107,7 +110,7 @@ final class Item extends Model
             Kit::class,
             config('inventory.tables.kit_items', 'kit_items'),
             'item_id',
-            'kit_id'
+            'kit_id',
         )->withPivot(['quantity', 'is_optional', 'sort_order'])
             ->withTimestamps();
     }

@@ -42,7 +42,7 @@ final readonly class PurchaseOrderLineData
             'description' => $this->description,
             'destination_location_id' => $this->destinationLocationId,
             'notes' => $this->notes,
-        ], fn ($value) => $value !== null);
+        ], fn (float|string|null $value): bool => $value !== null);
     }
 
     /**

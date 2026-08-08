@@ -7,10 +7,12 @@ namespace RobinsonRyan\Inventory\Stock\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Concerns\BelongsToTenant;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
-use RobinsonRyan\Inventory\Stock\Database\Factories\ReservationFactory;
+use RobinsonRyan\Inventory\Database\Factories\Stock\ReservationFactory;
 use RobinsonRyan\Inventory\Stock\TagDefinitions\ReservationStatusDefinition;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 use RobinsonRyan\Taxon\HasTags;
 
 /**
@@ -28,10 +30,10 @@ use RobinsonRyan\Taxon\HasTags;
  * @property \Illuminate\Support\Carbon|null $fulfilled_at
  * @property \Illuminate\Support\Carbon|null $cancelled_at
  * @property string|null $notes
- * @property array|null $metadata
+ * @property array<string, mixed>|null $metadata
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read string|null $status
+ * @property string|null $status
  * @property-read Model $item
  * @property-read Stock|null $stock
  * @property-read Location|null $location
@@ -39,7 +41,10 @@ use RobinsonRyan\Taxon\HasTags;
 final class Reservation extends Model
 {
     use BelongsToTenant;
+
+    /** @use HasFactory<ReservationFactory> */
     use HasFactory;
+
     use HasTags;
     use HasUuid7;
 
@@ -84,7 +89,7 @@ final class Reservation extends Model
      */
     public function item(): BelongsTo
     {
-        $itemModel = config('inventory.models.item');
+        $itemModel = ModelResolver::resolveAny('item', Item::class);
 
         return $this->belongsTo($itemModel, 'item_id');
     }
@@ -95,8 +100,8 @@ final class Reservation extends Model
     public function stock(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.stock', Stock::class),
-            'stock_id'
+            ModelResolver::resolve('stock', Stock::class),
+            'stock_id',
         );
     }
 
@@ -106,8 +111,8 @@ final class Reservation extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.location', Location::class),
-            'location_id'
+            ModelResolver::resolve('location', Location::class),
+            'location_id',
         );
     }
 

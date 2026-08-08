@@ -113,7 +113,7 @@ describe('Item Substitution', function (): void {
         $substitution = $action->execute(
             $original,
             $substitute,
-            notes: 'Use only in emergency situations'
+            notes: 'Use only in emergency situations',
         );
 
         expect($substitution->notes)->toBe('Use only in emergency situations');
@@ -151,6 +151,6 @@ describe('Item Substitution', function (): void {
             'substitute_item_id' => $substitute->id,
             'priority' => 1,
             'ratio' => 1.0,
-        ]))->toThrow(\Illuminate\Database\QueryException::class);
+        ]))->toThrow(Illuminate\Database\QueryException::class);
     });
 });

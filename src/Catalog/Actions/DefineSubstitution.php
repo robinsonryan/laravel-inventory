@@ -44,7 +44,7 @@ final class DefineSubstitution
                         'ratio' => $inverseRatio,
                         'is_bidirectional' => true,
                         'notes' => $notes,
-                    ]
+                    ],
                 );
             }
 

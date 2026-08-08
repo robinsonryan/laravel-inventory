@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use RobinsonRyan\Inventory\Stock\Data\ReservationData;
 
-describe('ReservationData', function () {
-    it('creates from constructor', function () {
+describe('ReservationData', function (): void {
+    it('creates from constructor', function (): void {
         $data = new ReservationData(
             itemId: 'item-123',
             jobType: 'work_order',
@@ -27,7 +27,7 @@ describe('ReservationData', function () {
             ->and($data->notes)->toBe('Urgent request');
     });
 
-    it('creates with minimal required fields', function () {
+    it('creates with minimal required fields', function (): void {
         $data = new ReservationData(
             itemId: 'item-123',
             jobType: 'work_order',
@@ -42,7 +42,7 @@ describe('ReservationData', function () {
             ->and($data->notes)->toBeNull();
     });
 
-    it('creates from array', function () {
+    it('creates from array', function (): void {
         $data = ReservationData::fromArray([
             'item_id' => 'item-123',
             'job_type' => 'invoice',
@@ -60,7 +60,7 @@ describe('ReservationData', function () {
             ->and($data->expiryHours)->toBe(24);
     });
 
-    it('converts to array', function () {
+    it('converts to array', function (): void {
         $data = new ReservationData(
             itemId: 'item-123',
             jobType: 'work_order',
@@ -81,7 +81,7 @@ describe('ReservationData', function () {
             ->and($array)->not->toHaveKey('notes');
     });
 
-    it('converts to array with all fields', function () {
+    it('converts to array with all fields', function (): void {
         $data = new ReservationData(
             itemId: 'item-123',
             jobType: 'work_order',

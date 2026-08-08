@@ -50,11 +50,11 @@ final class DefineTransformation
 
     private function validate(TransformationData $data): void
     {
-        if (empty($data->inputs)) {
+        if ($data->inputs === []) {
             throw new InvalidArgumentException('Transformation must have at least one input.');
         }
 
-        if (empty($data->outputs)) {
+        if ($data->outputs === []) {
             throw new InvalidArgumentException('Transformation must have at least one output.');
         }
     }

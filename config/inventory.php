@@ -146,30 +146,30 @@ return [
     */
     'models' => [
         // Catalog
-        'item' => \RobinsonRyan\Inventory\Catalog\Models\Item::class,
-        'kit' => \RobinsonRyan\Inventory\Catalog\Models\Kit::class,
-        'kit_item' => \RobinsonRyan\Inventory\Catalog\Models\KitItem::class,
-        'assembly' => \RobinsonRyan\Inventory\Catalog\Models\Assembly::class,
-        'transformation' => \RobinsonRyan\Inventory\Catalog\Models\Transformation::class,
-        'item_substitution' => \RobinsonRyan\Inventory\Catalog\Models\ItemSubstitution::class,
+        'item' => RobinsonRyan\Inventory\Catalog\Models\Item::class,
+        'kit' => RobinsonRyan\Inventory\Catalog\Models\Kit::class,
+        'kit_item' => RobinsonRyan\Inventory\Catalog\Models\KitItem::class,
+        'assembly' => RobinsonRyan\Inventory\Catalog\Models\Assembly::class,
+        'transformation' => RobinsonRyan\Inventory\Catalog\Models\Transformation::class,
+        'item_substitution' => RobinsonRyan\Inventory\Catalog\Models\ItemSubstitution::class,
 
         // Stock
-        'location' => \RobinsonRyan\Inventory\Stock\Models\Location::class,
-        'stock' => \RobinsonRyan\Inventory\Stock\Models\Stock::class,
-        'stock_movement' => \RobinsonRyan\Inventory\Stock\Models\StockMovement::class,
-        'reservation' => \RobinsonRyan\Inventory\Stock\Models\Reservation::class,
+        'location' => RobinsonRyan\Inventory\Stock\Models\Location::class,
+        'stock' => RobinsonRyan\Inventory\Stock\Models\Stock::class,
+        'stock_movement' => RobinsonRyan\Inventory\Stock\Models\StockMovement::class,
+        'reservation' => RobinsonRyan\Inventory\Stock\Models\Reservation::class,
 
         // Purchasing
-        'purchase_order' => \RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrder::class,
-        'purchase_order_line' => \RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrderLine::class,
-        'receipt' => \RobinsonRyan\Inventory\Purchasing\Models\Receipt::class,
+        'purchase_order' => RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrder::class,
+        'purchase_order_line' => RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrderLine::class,
+        'receipt' => RobinsonRyan\Inventory\Purchasing\Models\Receipt::class,
 
         // Reconciliation
-        'cycle_count' => \RobinsonRyan\Inventory\Reconciliation\Models\CycleCount::class,
-        'cycle_count_line' => \RobinsonRyan\Inventory\Reconciliation\Models\CycleCountLine::class,
-        'variance_adjustment' => \RobinsonRyan\Inventory\Reconciliation\Models\VarianceAdjustment::class,
+        'cycle_count' => RobinsonRyan\Inventory\Reconciliation\Models\CycleCount::class,
+        'cycle_count_line' => RobinsonRyan\Inventory\Reconciliation\Models\CycleCountLine::class,
+        'variance_adjustment' => RobinsonRyan\Inventory\Reconciliation\Models\VarianceAdjustment::class,
 
         // Forecasting
-        'reorder_recommendation' => \RobinsonRyan\Inventory\Forecasting\Models\ReorderRecommendation::class,
+        'reorder_recommendation' => RobinsonRyan\Inventory\Forecasting\Models\ReorderRecommendation::class,
     ],
 ];

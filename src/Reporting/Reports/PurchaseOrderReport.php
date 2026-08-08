@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace RobinsonRyan\Inventory\Reporting\Reports;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
+use RobinsonRyan\Inventory\Support\TableResolver;
+use RobinsonRyan\Vendor\Models\Vendor;
 
 final class PurchaseOrderReport implements ReportInterface
 {
@@ -21,10 +24,10 @@ final class PurchaseOrderReport implements ReportInterface
 
     public function generate(): ReportData
     {
-        $purchaseOrdersTable = config('inventory.tables.purchase_orders', 'purchase_orders');
-        $purchaseOrderLinesTable = config('inventory.tables.purchase_order_lines', 'purchase_order_lines');
-        $receiptsTable = config('inventory.tables.receipts', 'receipts');
-        $receiptLinesTable = config('inventory.tables.receipt_lines', 'receipt_lines');
+        $purchaseOrdersTable = TableResolver::resolve('purchase_orders', 'purchase_orders');
+        $purchaseOrderLinesTable = TableResolver::resolve('purchase_order_lines', 'purchase_order_lines');
+        $receiptsTable = TableResolver::resolve('receipts', 'receipts');
+        $receiptLinesTable = TableResolver::resolve('receipt_lines', 'receipt_lines');
 
         // Subquery to get received value per PO
         $receivedSubquery = DB::table($receiptLinesTable)
@@ -44,10 +47,10 @@ final class PurchaseOrderReport implements ReportInterface
             ->groupBy('purchase_order_id');
 
         $query = DB::table($purchaseOrdersTable)
-            ->leftJoinSub($receivedSubquery, 'received', function ($join) use ($purchaseOrdersTable) {
+            ->leftJoinSub($receivedSubquery, 'received', function ($join) use ($purchaseOrdersTable): void {
                 $join->on("{$purchaseOrdersTable}.id", '=', 'received.purchase_order_id');
             })
-            ->leftJoinSub($linesSubquery, 'lines', function ($join) use ($purchaseOrdersTable) {
+            ->leftJoinSub($linesSubquery, 'lines', function ($join) use ($purchaseOrdersTable): void {
                 $join->on("{$purchaseOrdersTable}.id", '=', 'lines.purchase_order_id');
             })
             ->select([
@@ -64,11 +67,11 @@ final class PurchaseOrderReport implements ReportInterface
             ])
             ->orderByDesc("{$purchaseOrdersTable}.order_date");
 
-        if ($this->fromDate !== null) {
+        if ($this->fromDate instanceof Carbon) {
             $query->where("{$purchaseOrdersTable}.order_date", '>=', $this->fromDate->startOfDay());
         }
 
-        if ($this->toDate !== null) {
+        if ($this->toDate instanceof Carbon) {
             $query->where("{$purchaseOrdersTable}.order_date", '<=', $this->toDate->endOfDay());
         }
 
@@ -80,7 +83,10 @@ final class PurchaseOrderReport implements ReportInterface
             $query->where("{$purchaseOrdersTable}.status", $this->status);
         }
 
-        $rows = $query->get();
+        // Normalise the raw stdClass result rows to arrays once, here, rather
+        // than leaving every exporter to cast defensively.
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = $query->get()->map(fn (object $row): array => (array) $row);
 
         // Try to get vendor names if vendor model is available
         $rows = $this->attachVendorNames($rows);
@@ -117,7 +123,7 @@ final class PurchaseOrderReport implements ReportInterface
      */
     public function getColumns(): array
     {
-        return array_map(fn (ColumnDefinition $col) => $col->toArray(), $this->getColumnDefinitions());
+        return array_map(fn (ColumnDefinition $col): array => $col->toArray(), $this->getColumnDefinitions());
     }
 
     /**
@@ -143,38 +149,45 @@ final class PurchaseOrderReport implements ReportInterface
     /**
      * Attach vendor names to the rows if the vendor package is available.
      *
-     * @param  \Illuminate\Support\Collection<int, \stdClass>  $rows
-     * @return \Illuminate\Support\Collection<int, \stdClass>
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return Collection<int, array<string, mixed>>
      */
-    private function attachVendorNames($rows)
+    private function attachVendorNames(Collection $rows): Collection
     {
-        // Check if vendor model exists
-        if (! class_exists(\RobinsonRyan\Vendor\Models\Vendor::class)) {
-            return $rows->map(function ($row) {
-                $row->vendor_name = null;
+        $vendors = $this->vendorNames($rows);
 
-                return $row;
-            });
+        /** @var Collection<int, array<string, mixed>> $mapped */
+        $mapped = $rows->map(function (array $row) use ($vendors): array {
+            $vendorId = $row['vendor_id'] ?? null;
+            $row['vendor_name'] = is_scalar($vendorId) ? ($vendors[$vendorId] ?? null) : null;
+
+            return $row;
+        });
+
+        return $mapped;
+    }
+
+    /**
+     * Look up vendor names keyed by vendor ID, or an empty map when the vendor
+     * package is absent or no row carries a vendor.
+     *
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return Collection<array-key, mixed>
+     */
+    private function vendorNames(Collection $rows): Collection
+    {
+        if (! class_exists(Vendor::class)) {
+            return collect();
         }
 
         $vendorIds = $rows->pluck('vendor_id')->unique()->filter()->values();
 
         if ($vendorIds->isEmpty()) {
-            return $rows->map(function ($row) {
-                $row->vendor_name = null;
-
-                return $row;
-            });
+            return collect();
         }
 
-        $vendors = DB::table('vendors')
+        return DB::table('vendors')
             ->whereIn('id', $vendorIds)
             ->pluck('name', 'id');
-
-        return $rows->map(function ($row) use ($vendors) {
-            $row->vendor_name = $vendors[$row->vendor_id] ?? null;
-
-            return $row;
-        });
     }
 }

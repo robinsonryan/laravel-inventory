@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 
-describe('ColumnDefinition', function () {
-    it('creates column definition with defaults', function () {
+describe('ColumnDefinition', function (): void {
+    it('creates column definition with defaults', function (): void {
         $column = new ColumnDefinition('id', 'ID');
 
         expect($column->key)->toBe('id')
@@ -15,7 +15,7 @@ describe('ColumnDefinition', function () {
             ->and($column->format)->toBeNull();
     });
 
-    it('creates column definition with all properties', function () {
+    it('creates column definition with all properties', function (): void {
         $column = new ColumnDefinition(
             key: 'amount',
             label: 'Total Amount',
@@ -31,7 +31,7 @@ describe('ColumnDefinition', function () {
             ->and($column->format)->toBe('0.00');
     });
 
-    it('has correct type constants', function () {
+    it('has correct type constants', function (): void {
         expect(ColumnDefinition::TYPE_STRING)->toBe('string')
             ->and(ColumnDefinition::TYPE_NUMBER)->toBe('number')
             ->and(ColumnDefinition::TYPE_CURRENCY)->toBe('currency')
@@ -39,7 +39,7 @@ describe('ColumnDefinition', function () {
             ->and(ColumnDefinition::TYPE_DATETIME)->toBe('datetime');
     });
 
-    it('creates from array', function () {
+    it('creates from array', function (): void {
         $column = ColumnDefinition::fromArray([
             'key' => 'price',
             'label' => 'Price',
@@ -55,7 +55,7 @@ describe('ColumnDefinition', function () {
             ->and($column->format)->toBe('$0.00');
     });
 
-    it('creates from array with defaults', function () {
+    it('creates from array with defaults', function (): void {
         $column = ColumnDefinition::fromArray([
             'key' => 'name',
             'label' => 'Name',
@@ -68,7 +68,7 @@ describe('ColumnDefinition', function () {
             ->and($column->format)->toBeNull();
     });
 
-    it('converts to array', function () {
+    it('converts to array', function (): void {
         $column = new ColumnDefinition(
             key: 'quantity',
             label: 'Quantity',
@@ -88,7 +88,7 @@ describe('ColumnDefinition', function () {
         ]);
     });
 
-    it('handles null format in array conversion', function () {
+    it('handles null format in array conversion', function (): void {
         $column = new ColumnDefinition('id', 'ID');
         $array = $column->toArray();
 

@@ -13,9 +13,9 @@ final class UpdateItem
     {
         $item->update($data->toModelAttributes());
 
-        if ($data->category !== null) {
-            $item->category = $data->category;
-        }
+        // `category` is a taxon tag attribute, so it is deliberately excluded from
+        // toModelAttributes()/$fillable and has to be assigned separately.
+        $item->category = $data->category;
 
         return $item->fresh() ?? $item;
     }

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace RobinsonRyan\Inventory\Reporting\Reports;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
+use RobinsonRyan\Inventory\Support\TableResolver;
 
 final class ReservationReport implements ReportInterface
 {
@@ -21,9 +23,9 @@ final class ReservationReport implements ReportInterface
 
     public function generate(): ReportData
     {
-        $reservationsTable = config('inventory.tables.reservations', 'reservations');
-        $itemsTable = config('inventory.tables.items', 'items');
-        $locationsTable = config('inventory.tables.locations', 'locations');
+        $reservationsTable = TableResolver::resolve('reservations', 'reservations');
+        $itemsTable = TableResolver::resolve('items', 'items');
+        $locationsTable = TableResolver::resolve('locations', 'locations');
 
         $query = DB::table($reservationsTable)
             ->join($itemsTable, "{$reservationsTable}.item_id", '=', "{$itemsTable}.id")
@@ -60,13 +62,16 @@ final class ReservationReport implements ReportInterface
         }
 
         if (! $this->includeExpired) {
-            $query->where(function ($q) use ($reservationsTable) {
+            $query->where(function ($q) use ($reservationsTable): void {
                 $q->whereNull("{$reservationsTable}.expires_at")
                     ->orWhere("{$reservationsTable}.expires_at", '>', Carbon::now());
             });
         }
 
-        $rows = $query->get();
+        // Normalise the raw stdClass result rows to arrays once, here, rather
+        // than leaving every exporter to cast defensively.
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = $query->get()->map(fn (object $row): array => (array) $row);
 
         // Calculate summary
         $totalReservations = $rows->count();
@@ -100,7 +105,7 @@ final class ReservationReport implements ReportInterface
      */
     public function getColumns(): array
     {
-        return array_map(fn (ColumnDefinition $col) => $col->toArray(), $this->getColumnDefinitions());
+        return array_map(fn (ColumnDefinition $col): array => $col->toArray(), $this->getColumnDefinitions());
     }
 
     /**

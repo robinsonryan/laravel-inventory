@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\App;
 use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
@@ -16,12 +15,12 @@ use RobinsonRyan\Inventory\Reporting\Services\ReportService;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->reportService = App::make(ReportService::class);
 });
 
-describe('CsvExporter', function () {
-    it('exports to CSV format', function () {
+describe('CsvExporter', function (): void {
+    it('exports to CSV format', function (): void {
         $location = Location::factory()->warehouse()->create(['code' => 'WH1', 'name' => 'Warehouse 1']);
         $item = Item::factory()->create(['sku' => 'TEST-001', 'name' => 'Test Item']);
 
@@ -32,7 +31,7 @@ describe('CsvExporter', function () {
             ->withCost(10.00)
             ->create();
 
-        $report = new StockValuationReport();
+        $report = new StockValuationReport;
         $data = $this->reportService->generate($report);
         $csv = $this->reportService->export($data, 'csv');
 
@@ -43,8 +42,8 @@ describe('CsvExporter', function () {
             ->toContain('100');
     });
 
-    it('handles empty reports', function () {
-        $report = new StockValuationReport();
+    it('handles empty reports', function (): void {
+        $report = new StockValuationReport;
         $data = $this->reportService->generate($report);
         $csv = $this->reportService->export($data, 'csv');
 
@@ -56,7 +55,7 @@ describe('CsvExporter', function () {
         expect(count($lines))->toBe(1); // Just header row
     });
 
-    it('formats currency values', function () {
+    it('formats currency values', function (): void {
         $data = new ReportData(
             title: 'Test Report',
             columns: [
@@ -69,14 +68,14 @@ describe('CsvExporter', function () {
             generatedAt: Carbon::now(),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         expect($csv)->toContain('1234.57')
             ->toContain('99.90');
     });
 
-    it('formats date values', function () {
+    it('formats date values', function (): void {
         $data = new ReportData(
             title: 'Test Report',
             columns: [
@@ -92,14 +91,14 @@ describe('CsvExporter', function () {
             generatedAt: Carbon::now(),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         expect($csv)->toContain('2026-01-15')
             ->toContain('2026-01-15 14:30:00');
     });
 
-    it('handles null values', function () {
+    it('handles null values', function (): void {
         $data = new ReportData(
             title: 'Test Report',
             columns: [
@@ -112,23 +111,23 @@ describe('CsvExporter', function () {
             generatedAt: Carbon::now(),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         // Should have empty value for null
         expect($csv)->toContain('Test,');
     });
 
-    it('uses correct content type and extension', function () {
-        $exporter = new CsvExporter();
+    it('uses correct content type and extension', function (): void {
+        $exporter = new CsvExporter;
 
         expect($exporter->getContentType())->toBe('text/csv')
             ->and($exporter->getFileExtension())->toBe('csv');
     });
 });
 
-describe('JsonExporter', function () {
-    it('exports to JSON format', function () {
+describe('JsonExporter', function (): void {
+    it('exports to JSON format', function (): void {
         $location = Location::factory()->warehouse()->create(['code' => 'WH1']);
         $item = Item::factory()->create(['sku' => 'TEST-001']);
 
@@ -139,7 +138,7 @@ describe('JsonExporter', function () {
             ->withCost(10.00)
             ->create();
 
-        $report = new StockValuationReport();
+        $report = new StockValuationReport;
         $data = $this->reportService->generate($report);
         $json = $this->reportService->export($data, 'json');
 
@@ -156,8 +155,8 @@ describe('JsonExporter', function () {
             ->and($decoded['rows'][0]['item_sku'])->toBe('TEST-001');
     });
 
-    it('handles empty reports', function () {
-        $report = new StockValuationReport();
+    it('handles empty reports', function (): void {
+        $report = new StockValuationReport;
         $data = $this->reportService->generate($report);
         $json = $this->reportService->export($data, 'json');
 
@@ -167,7 +166,7 @@ describe('JsonExporter', function () {
             ->toBeEmpty();
     });
 
-    it('includes metadata when requested', function () {
+    it('includes metadata when requested', function (): void {
         $data = new ReportData(
             title: 'Test Report',
             columns: [new ColumnDefinition('id', 'ID')],
@@ -186,7 +185,7 @@ describe('JsonExporter', function () {
             ->toHaveKey('generated_at');
     });
 
-    it('excludes metadata when not requested', function () {
+    it('excludes metadata when not requested', function (): void {
         $data = new ReportData(
             title: 'Test Report',
             columns: [new ColumnDefinition('id', 'ID')],
@@ -203,7 +202,7 @@ describe('JsonExporter', function () {
             ->toHaveKey('rows');
     });
 
-    it('supports pretty print', function () {
+    it('supports pretty print', function (): void {
         $data = new ReportData(
             title: 'Test Report',
             columns: [new ColumnDefinition('id', 'ID')],
@@ -218,16 +217,16 @@ describe('JsonExporter', function () {
         expect($json)->toContain("\n");
     });
 
-    it('uses correct content type and extension', function () {
-        $exporter = new JsonExporter();
+    it('uses correct content type and extension', function (): void {
+        $exporter = new JsonExporter;
 
         expect($exporter->getContentType())->toBe('application/json')
             ->and($exporter->getFileExtension())->toBe('json');
     });
 });
 
-describe('AccountingExporter', function () {
-    it('exports to IIF format', function () {
+describe('AccountingExporter', function (): void {
+    it('exports to IIF format', function (): void {
         $data = new ReportData(
             title: 'Stock Valuation',
             columns: [
@@ -256,7 +255,7 @@ describe('AccountingExporter', function () {
             ->toContain('1000.00');
     });
 
-    it('exports to QIF format', function () {
+    it('exports to QIF format', function (): void {
         $data = new ReportData(
             title: 'Stock Valuation',
             columns: [
@@ -282,21 +281,21 @@ describe('AccountingExporter', function () {
             ->toContain('^');
     });
 
-    it('uses correct content type for IIF', function () {
+    it('uses correct content type for IIF', function (): void {
         $exporter = new AccountingExporter(AccountingExporter::FORMAT_IIF);
 
         expect($exporter->getContentType())->toBe('application/x-iif')
             ->and($exporter->getFileExtension())->toBe('iif');
     });
 
-    it('uses correct content type for QIF', function () {
+    it('uses correct content type for QIF', function (): void {
         $exporter = new AccountingExporter(AccountingExporter::FORMAT_QIF);
 
         expect($exporter->getContentType())->toBe('application/x-qif')
             ->and($exporter->getFileExtension())->toBe('qif');
     });
 
-    it('handles empty reports', function () {
+    it('handles empty reports', function (): void {
         $data = new ReportData(
             title: 'Empty Report',
             columns: [new ColumnDefinition('id', 'ID')],
@@ -317,8 +316,8 @@ describe('AccountingExporter', function () {
     });
 });
 
-describe('ReportService', function () {
-    it('generates and exports in one step', function () {
+describe('ReportService', function (): void {
+    it('generates and exports in one step', function (): void {
         $location = Location::factory()->warehouse()->create();
         $item = Item::factory()->create(['sku' => 'TEST-001']);
 
@@ -328,14 +327,14 @@ describe('ReportService', function () {
             ->withQuantity(50)
             ->create();
 
-        $report = new StockValuationReport();
+        $report = new StockValuationReport;
         $csv = $this->reportService->generateAndExport($report, 'csv');
 
         expect($csv)->toBeString()
             ->toContain('TEST-001');
     });
 
-    it('returns available formats', function () {
+    it('returns available formats', function (): void {
         $formats = $this->reportService->getAvailableFormats();
 
         expect($formats)->toBeArray()
@@ -347,7 +346,7 @@ describe('ReportService', function () {
         expect($formats['csv']['content_type'])->toBe('text/csv');
     });
 
-    it('returns available reports', function () {
+    it('returns available reports', function (): void {
         $reports = $this->reportService->getAvailableReports();
 
         expect($reports)->toBeArray()
@@ -359,13 +358,13 @@ describe('ReportService', function () {
             ->toHaveKey('purchase-order');
     });
 
-    it('checks if format is supported', function () {
+    it('checks if format is supported', function (): void {
         expect($this->reportService->supportsFormat('csv'))->toBeTrue()
             ->and($this->reportService->supportsFormat('json'))->toBeTrue()
             ->and($this->reportService->supportsFormat('unknown'))->toBeFalse();
     });
 
-    it('throws exception for unknown format', function () {
+    it('throws exception for unknown format', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [],

@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Forecasting\Services;
 
-use Carbon\Carbon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Forecasting\Models\ReorderRecommendation;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 
-final class ReorderCalculator
+final readonly class ReorderCalculator
 {
     private const DEFAULT_SAFETY_DAYS = 7;
 
@@ -20,7 +19,7 @@ final class ReorderCalculator
     private const DEFAULT_REVIEW_PERIOD_DAYS = 7;
 
     public function __construct(
-        private readonly DemandAnalyzer $demandAnalyzer,
+        private DemandAnalyzer $demandAnalyzer,
     ) {}
 
     /**
@@ -34,12 +33,12 @@ final class ReorderCalculator
         $item = $this->getItem($itemId);
 
         // If item has a min_stock_level set, use that as the reorder point
-        if ($item !== null && $item->min_stock_level !== null) {
+        if ($item instanceof Item && $item->min_stock_level !== null) {
             return $item->min_stock_level;
         }
 
         $averageDailyUsage = $this->demandAnalyzer->calculateAverageDailyUsage($itemId);
-        $leadTimeDays = $item?->lead_time_days ?? self::DEFAULT_LEAD_TIME_DAYS;
+        $leadTimeDays = $item->lead_time_days ?? self::DEFAULT_LEAD_TIME_DAYS;
         $safetyDays = self::DEFAULT_SAFETY_DAYS;
 
         // ROP = (ADU x Lead Time) + (ADU x Safety Days)
@@ -60,10 +59,10 @@ final class ReorderCalculator
 
         // If no usage history, return a reasonable minimum
         if ($averageDailyUsage <= 0) {
-            return $item?->min_stock_level ?? 10;
+            return $item->min_stock_level ?? 10;
         }
 
-        $leadTimeDays = $item?->lead_time_days ?? self::DEFAULT_LEAD_TIME_DAYS;
+        $leadTimeDays = $item->lead_time_days ?? self::DEFAULT_LEAD_TIME_DAYS;
         $reviewPeriod = self::DEFAULT_REVIEW_PERIOD_DAYS;
         $safetyDays = self::DEFAULT_SAFETY_DAYS;
 
@@ -112,7 +111,7 @@ final class ReorderCalculator
             ->where('is_active', true)
             ->get();
 
-        return $items->filter(function (Item $item) {
+        return $items->filter(function (Item $item): bool {
             $currentAvailable = $this->getAvailableStockQuantity($item->id);
             $reorderPoint = $this->calculateReorderPoint($item->id);
 
@@ -127,7 +126,7 @@ final class ReorderCalculator
     {
         $item = $this->getItem($itemId);
 
-        if ($item === null || ! $item->is_active) {
+        if (! $item instanceof Item || ! $item->is_active) {
             return null;
         }
 
@@ -186,7 +185,7 @@ final class ReorderCalculator
         foreach ($itemsBelowReorderPoint as $item) {
             $recommendation = $this->generateRecommendation($item->id);
 
-            if ($recommendation !== null) {
+            if ($recommendation instanceof ReorderRecommendation) {
                 $recommendations->push($recommendation);
             }
         }

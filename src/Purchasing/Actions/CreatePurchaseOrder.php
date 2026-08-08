@@ -12,10 +12,10 @@ use RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrder;
 use RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrderLine;
 use RobinsonRyan\Inventory\Purchasing\Services\PurchaseOrderService;
 
-final class CreatePurchaseOrder
+final readonly class CreatePurchaseOrder
 {
     public function __construct(
-        private readonly PurchaseOrderService $service,
+        private PurchaseOrderService $service,
     ) {}
 
     /**
@@ -65,7 +65,7 @@ final class CreatePurchaseOrder
             // Calculate totals
             $this->service->calculateTotals($po);
 
-            return $po->fresh(['lines', 'vendor']);
+            return $po->fresh(['lines', 'vendor']) ?? $po;
         });
     }
 

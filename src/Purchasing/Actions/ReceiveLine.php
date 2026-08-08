@@ -15,11 +15,11 @@ use RobinsonRyan\Inventory\Purchasing\Services\PurchaseOrderService;
 use RobinsonRyan\Inventory\Stock\Actions\AddStock;
 use RobinsonRyan\Inventory\Stock\Data\AddStockData;
 
-final class ReceiveLine
+final readonly class ReceiveLine
 {
     public function __construct(
-        private readonly PurchaseOrderService $service,
-        private readonly AddStock $addStock,
+        private PurchaseOrderService $service,
+        private AddStock $addStock,
     ) {}
 
     /**
@@ -44,12 +44,12 @@ final class ReceiveLine
             $pending = $poLine->getQuantityPending();
             if ($data->quantity > $pending) {
                 throw new InvalidArgumentException(
-                    "Cannot receive {$data->quantity} units. Only {$pending} pending."
+                    "Cannot receive {$data->quantity} units. Only {$pending} pending.",
                 );
             }
 
             // Create receipt if not provided
-            if ($receipt === null) {
+            if (! $receipt instanceof Receipt) {
                 /** @var Receipt */
                 $receipt = $this->getReceiptModel()::query()->create([
                     'tenant_id' => $po->tenant_id,
@@ -88,7 +88,7 @@ final class ReceiveLine
             ]);
 
             // Update PO line received quantity
-            $poLine->quantity_received = (float) $poLine->quantity_received + $data->quantity;
+            $poLine->quantity_received = (string) ((float) $poLine->quantity_received + $data->quantity);
             $poLine->save();
 
             // Update PO status

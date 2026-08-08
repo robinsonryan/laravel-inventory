@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Stock\Services;
 
-use Carbon\Carbon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -14,10 +14,10 @@ use RobinsonRyan\Inventory\Stock\Models\Reservation;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 
-final class ReservationService
+final readonly class ReservationService
 {
     public function __construct(
-        private readonly StockService $stockService,
+        private StockService $stockService,
     ) {}
 
     /**
@@ -28,7 +28,7 @@ final class ReservationService
         return DB::transaction(function () use ($data): Reservation {
             if (! $this->canReserve($data->itemId, $data->quantity, $data->locationId)) {
                 throw new InvalidArgumentException(
-                    'Insufficient available stock to create reservation.'
+                    'Insufficient available stock to create reservation.',
                 );
             }
 
@@ -55,7 +55,7 @@ final class ReservationService
             $reservation->status = 'reserved';
 
             // Update reserved quantity on stock
-            if ($stock !== null) {
+            if ($stock instanceof Stock) {
                 $stock->increment('reserved_quantity', $data->quantity);
             }
 

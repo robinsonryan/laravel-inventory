@@ -51,7 +51,7 @@ describe('Transformation', function (): void {
 
         $action = new DefineTransformation;
 
-        expect(fn () => $action->execute($data))
+        expect(fn (): Transformation => $action->execute($data))
             ->toThrow(InvalidArgumentException::class, 'Transformation must have at least one input.');
     });
 
@@ -68,7 +68,7 @@ describe('Transformation', function (): void {
 
         $action = new DefineTransformation;
 
-        expect(fn () => $action->execute($data))
+        expect(fn (): Transformation => $action->execute($data))
             ->toThrow(InvalidArgumentException::class, 'Transformation must have at least one output.');
     });
 
@@ -131,7 +131,7 @@ describe('Transformation', function (): void {
 
         expect($transformation->outputs)->toHaveCount(3);
 
-        $totalOutput = $transformation->outputs->sum(fn ($o) => (float) $o->quantity);
+        $totalOutput = $transformation->outputs->sum(fn ($o): float => (float) $o->quantity);
         expect($totalOutput)->toBe(95.0);
     });
 

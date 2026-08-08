@@ -10,14 +10,14 @@ use RobinsonRyan\Inventory\Reporting\Services\ReportService;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->reportService = App::make(ReportService::class);
     $this->location1 = Location::factory()->warehouse()->create(['code' => 'WH1', 'name' => 'Warehouse 1']);
     $this->location2 = Location::factory()->warehouse()->create(['code' => 'WH2', 'name' => 'Warehouse 2']);
 });
 
-describe('StockValuationReport', function () {
-    it('generates stock valuation report', function () {
+describe('StockValuationReport', function (): void {
+    it('generates stock valuation report', function (): void {
         $item = Item::factory()->create(['sku' => 'TEST-001', 'name' => 'Test Item']);
 
         Stock::factory()
@@ -27,19 +27,19 @@ describe('StockValuationReport', function () {
             ->withCost(10.00)
             ->create();
 
-        $report = new StockValuationReport();
+        $report = new StockValuationReport;
         $data = $this->reportService->generate($report);
 
         expect($data)->toBeInstanceOf(ReportData::class)
             ->and($data->title)->toBe('Stock Valuation Report')
             ->and($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->item_sku)->toBe('TEST-001')
-            ->and((float) $data->rows->first()->quantity)->toBe(100.0)
-            ->and((float) $data->rows->first()->unit_cost)->toBe(10.0)
-            ->and((float) $data->rows->first()->total_value)->toBe(1000.0);
+            ->and($data->rows->first()['item_sku'])->toBe('TEST-001')
+            ->and((float) $data->rows->first()['quantity'])->toBe(100.0)
+            ->and((float) $data->rows->first()['unit_cost'])->toBe(10.0)
+            ->and((float) $data->rows->first()['total_value'])->toBe(1000.0);
     });
 
-    it('filters by location', function () {
+    it('filters by location', function (): void {
         $item = Item::factory()->create();
 
         Stock::factory()
@@ -60,10 +60,10 @@ describe('StockValuationReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->location_code)->toBe('WH1');
+            ->and($data->rows->first()['location_code'])->toBe('WH1');
     });
 
-    it('filters by item category', function () {
+    it('filters by item category', function (): void {
         $partItem = Item::factory()->create(['category' => 'part']);
         $supplyItem = Item::factory()->create(['category' => 'supply']);
 
@@ -83,10 +83,10 @@ describe('StockValuationReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->category)->toBe('part');
+            ->and($data->rows->first()['category'])->toBe('part');
     });
 
-    it('calculates totals correctly', function () {
+    it('calculates totals correctly', function (): void {
         $item1 = Item::factory()->create();
         $item2 = Item::factory()->create();
 
@@ -106,7 +106,7 @@ describe('StockValuationReport', function () {
             ->withReserved(10)
             ->create();
 
-        $report = new StockValuationReport();
+        $report = new StockValuationReport;
         $data = $this->reportService->generate($report);
 
         // Total value: (100 * 10) + (50 * 20) = 1000 + 1000 = 2000
@@ -117,8 +117,8 @@ describe('StockValuationReport', function () {
             ->and($data->getSummary('unique_items'))->toBe(2);
     });
 
-    it('includes all required columns', function () {
-        $report = new StockValuationReport();
+    it('includes all required columns', function (): void {
+        $report = new StockValuationReport;
         $columns = $report->getColumns();
 
         $columnKeys = array_column($columns, 'key');

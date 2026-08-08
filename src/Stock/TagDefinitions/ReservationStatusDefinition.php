@@ -19,7 +19,7 @@ final class ReservationStatusDefinition extends TagDefinition
     /**
      * @var list<string>
      */
-    public const array DEFAULT_VALUES = [
+    public const DEFAULT_VALUES = [
         'pending',
         'reserved',
         'partial',

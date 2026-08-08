@@ -32,7 +32,7 @@ final class TransferStock
 
         if ($sourceStock === null) {
             throw new InvalidArgumentException(
-                'No stock record found at the source location.'
+                'No stock record found at the source location.',
             );
         }
 
@@ -47,8 +47,8 @@ final class TransferStock
                 sprintf(
                     'Insufficient stock to transfer. Requested: %.4f, Available: %.4f',
                     $data->quantity,
-                    $availableQuantity
-                )
+                    $availableQuantity,
+                ),
             );
         }
 
@@ -69,7 +69,7 @@ final class TransferStock
                 'quantity' => 0,
                 'reserved_quantity' => 0,
                 'cost_basis' => $sourceStock->cost_basis,
-            ]
+            ],
         );
 
         // Update destination stock
@@ -101,7 +101,7 @@ final class TransferStock
         $guard = config('inventory.actor.guard', 'web');
         $user = Auth::guard($guard)->user();
 
-        return $user !== null ? get_class($user) : null;
+        return $user !== null ? $user::class : null;
     }
 
     private function getActorId(): ?string

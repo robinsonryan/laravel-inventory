@@ -28,7 +28,7 @@ final class RemoveStock
 
         if ($stock === null) {
             throw new InvalidArgumentException(
-                'No stock record found for the specified item and location.'
+                'No stock record found for the specified item and location.',
             );
         }
 
@@ -43,8 +43,8 @@ final class RemoveStock
                 sprintf(
                     'Insufficient stock. Requested: %.4f, Available: %.4f',
                     $data->quantity,
-                    $availableQuantity
-                )
+                    $availableQuantity,
+                ),
             );
         }
 
@@ -80,7 +80,7 @@ final class RemoveStock
         $guard = config('inventory.actor.guard', 'web');
         $user = Auth::guard($guard)->user();
 
-        return $user !== null ? get_class($user) : null;
+        return $user !== null ? $user::class : null;
     }
 
     private function getActorId(): ?string

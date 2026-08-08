@@ -11,14 +11,14 @@ use RobinsonRyan\Inventory\Reconciliation\Services\ReconciliationService;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->service = App::make(ReconciliationService::class);
     $this->location = Location::factory()->create();
     $this->item = Item::factory()->create();
 });
 
-describe('InitiateCycleCount', function () {
-    it('creates a cycle count', function () {
+describe('InitiateCycleCount', function (): void {
+    it('creates a cycle count', function (): void {
         $data = new CycleCountData(
             locationId: $this->location->id,
             notes: 'Test cycle count',
@@ -34,7 +34,7 @@ describe('InitiateCycleCount', function () {
             ->and($count->count_number)->toStartWith('CC-');
     });
 
-    it('creates lines for all items at location', function () {
+    it('creates lines for all items at location', function (): void {
         // Create stock at the location
         Stock::factory()
             ->forItem($this->item->id)
@@ -59,7 +59,7 @@ describe('InitiateCycleCount', function () {
         expect($count->lines)->toHaveCount(2);
     });
 
-    it('creates lines for specific items', function () {
+    it('creates lines for specific items', function (): void {
         // Create stock at the location
         Stock::factory()
             ->forItem($this->item->id)
@@ -86,7 +86,7 @@ describe('InitiateCycleCount', function () {
             ->and($count->lines->first()->item_id)->toBe($this->item->id);
     });
 
-    it('calculates expected quantities from stock', function () {
+    it('calculates expected quantities from stock', function (): void {
         Stock::factory()
             ->forItem($this->item->id)
             ->forLocation($this->location)
@@ -103,7 +103,7 @@ describe('InitiateCycleCount', function () {
         expect((float) $count->lines->first()->expected_quantity)->toBe(75.5);
     });
 
-    it('includes lot and serial number from stock', function () {
+    it('includes lot and serial number from stock', function (): void {
         Stock::factory()
             ->forItem($this->item->id)
             ->forLocation($this->location)
@@ -121,7 +121,7 @@ describe('InitiateCycleCount', function () {
         expect($count->lines->first()->lot_number)->toBe('LOT-001');
     });
 
-    it('auto-generates count number', function () {
+    it('auto-generates count number', function (): void {
         $data = new CycleCountData(locationId: $this->location->id);
 
         $action = App::make(InitiateCycleCount::class);
@@ -130,7 +130,7 @@ describe('InitiateCycleCount', function () {
         expect($count->count_number)->toMatch('/^CC-\d{8}-\d{4}$/');
     });
 
-    it('does not create lines for zero quantity stock', function () {
+    it('does not create lines for zero quantity stock', function (): void {
         Stock::factory()
             ->forItem($this->item->id)
             ->forLocation($this->location)
@@ -147,7 +147,7 @@ describe('InitiateCycleCount', function () {
         expect($count->lines)->toHaveCount(0);
     });
 
-    it('sets scheduled date when provided', function () {
+    it('sets scheduled date when provided', function (): void {
         $scheduledDate = now()->addDays(3)->format('Y-m-d');
 
         $data = new CycleCountData(
@@ -162,8 +162,8 @@ describe('InitiateCycleCount', function () {
     });
 });
 
-describe('CycleCount Model', function () {
-    it('calculates total variance', function () {
+describe('CycleCount Model', function (): void {
+    it('calculates total variance', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->inProgress()
@@ -191,7 +191,7 @@ describe('CycleCount Model', function () {
         expect($count->getTotalVariance())->toBe(0.0);
     });
 
-    it('counts lines with variances', function () {
+    it('counts lines with variances', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->inProgress()
@@ -220,7 +220,7 @@ describe('CycleCount Model', function () {
         expect($count->getVarianceCount())->toBe(1);
     });
 
-    it('checks if fully counted', function () {
+    it('checks if fully counted', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->inProgress()
@@ -247,8 +247,8 @@ describe('CycleCount Model', function () {
     });
 });
 
-describe('ReconciliationService', function () {
-    it('generates sequential count numbers', function () {
+describe('ReconciliationService', function (): void {
+    it('generates sequential count numbers', function (): void {
         $cc1 = $this->service->generateCountNumber();
         $cc2 = $this->service->generateCountNumber();
 
@@ -265,7 +265,7 @@ describe('ReconciliationService', function () {
         expect($cc3)->toMatch('/^CC-\d{8}-0002$/');
     });
 
-    it('gets items to count for location', function () {
+    it('gets items to count for location', function (): void {
         Stock::factory()
             ->forItem($this->item->id)
             ->forLocation($this->location)
@@ -278,7 +278,7 @@ describe('ReconciliationService', function () {
             ->and($items->first()->item_id)->toBe($this->item->id);
     });
 
-    it('does not include zero quantity items', function () {
+    it('does not include zero quantity items', function (): void {
         Stock::factory()
             ->forItem($this->item->id)
             ->forLocation($this->location)
@@ -290,7 +290,7 @@ describe('ReconciliationService', function () {
         expect($items)->toHaveCount(0);
     });
 
-    it('checks if count can be approved', function () {
+    it('checks if count can be approved', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->pending()
@@ -309,7 +309,7 @@ describe('ReconciliationService', function () {
         expect($this->service->canApprove($count))->toBeTrue();
     });
 
-    it('cannot approve draft count', function () {
+    it('cannot approve draft count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -318,7 +318,7 @@ describe('ReconciliationService', function () {
         expect($this->service->canApprove($count))->toBeFalse();
     });
 
-    it('gets counts requiring approval', function () {
+    it('gets counts requiring approval', function (): void {
         CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -340,7 +340,7 @@ describe('ReconciliationService', function () {
             ->and($pending->first()->status)->toBe('pending');
     });
 
-    it('gets open counts', function () {
+    it('gets open counts', function (): void {
         CycleCount::factory()
             ->forLocation($this->location)
             ->draft()

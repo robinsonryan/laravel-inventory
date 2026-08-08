@@ -29,7 +29,7 @@ final class AdjustStock
             [
                 'quantity' => 0,
                 'reserved_quantity' => 0,
-            ]
+            ],
         );
 
         $currentQuantity = (float) $stock->quantity;
@@ -49,7 +49,7 @@ final class AdjustStock
         // Check if adjustment would violate reserved quantity
         if (! $allowNegative && $data->newQuantity < (float) $stock->reserved_quantity) {
             throw new InvalidArgumentException(
-                'Cannot adjust quantity below reserved quantity.'
+                'Cannot adjust quantity below reserved quantity.',
             );
         }
 
@@ -66,7 +66,7 @@ final class AdjustStock
             'Adjustment: %s - Reason: %s%s',
             $data->reason,
             $data->notes ?? '',
-            $data->notes !== null ? '' : ' (no notes)'
+            $data->notes !== null ? '' : ' (no notes)',
         );
 
         /** @var StockMovement */
@@ -98,7 +98,7 @@ final class AdjustStock
         $guard = config('inventory.actor.guard', 'web');
         $user = Auth::guard($guard)->user();
 
-        return $user !== null ? get_class($user) : null;
+        return $user !== null ? $user::class : null;
     }
 
     private function getActorId(): ?string

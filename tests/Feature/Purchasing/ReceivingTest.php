@@ -16,14 +16,14 @@ use RobinsonRyan\Inventory\Stock\Models\Stock;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 use RobinsonRyan\Vendor\Models\Vendor;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->vendor = Vendor::factory()->create();
     $this->item = Item::factory()->create();
     $this->location = Location::factory()->warehouse()->create();
 });
 
-describe('ReceiveLine', function () {
-    it('receives a line item', function () {
+describe('ReceiveLine', function (): void {
+    it('receives a line item', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -31,7 +31,7 @@ describe('ReceiveLine', function () {
                 PurchaseOrderLine::factory()
                     ->forItem($this->item->id)
                     ->state(['quantity' => 100, 'unit_cost' => 10.00]),
-                'lines'
+                'lines',
             )
             ->create();
 
@@ -52,7 +52,7 @@ describe('ReceiveLine', function () {
             ->and($receiptLine->location_id)->toBe($this->location->id);
     });
 
-    it('creates stock movement on receive', function () {
+    it('creates stock movement on receive', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -60,7 +60,7 @@ describe('ReceiveLine', function () {
                 PurchaseOrderLine::factory()
                     ->forItem($this->item->id)
                     ->state(['quantity' => 100, 'unit_cost' => 10.00]),
-                'lines'
+                'lines',
             )
             ->create();
 
@@ -81,7 +81,7 @@ describe('ReceiveLine', function () {
             ->and((float) $receiptLine->stockMovement->cost)->toBe(10.0);
     });
 
-    it('updates stock levels on receive', function () {
+    it('updates stock levels on receive', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -89,7 +89,7 @@ describe('ReceiveLine', function () {
                 PurchaseOrderLine::factory()
                     ->forItem($this->item->id)
                     ->state(['quantity' => 100, 'unit_cost' => 10.00]),
-                'lines'
+                'lines',
             )
             ->create();
 
@@ -114,7 +114,7 @@ describe('ReceiveLine', function () {
             ->and((float) $stock->quantity)->toBe(50.0);
     });
 
-    it('updates PO status to partial', function () {
+    it('updates PO status to partial', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -122,7 +122,7 @@ describe('ReceiveLine', function () {
                 PurchaseOrderLine::factory()
                     ->forItem($this->item->id)
                     ->state(['quantity' => 100]),
-                'lines'
+                'lines',
             )
             ->create();
 
@@ -141,7 +141,7 @@ describe('ReceiveLine', function () {
         expect($po->status)->toBe('partial');
     });
 
-    it('updates PO status to received when complete', function () {
+    it('updates PO status to received when complete', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -149,7 +149,7 @@ describe('ReceiveLine', function () {
                 PurchaseOrderLine::factory()
                     ->forItem($this->item->id)
                     ->state(['quantity' => 100]),
-                'lines'
+                'lines',
             )
             ->create();
 
@@ -168,7 +168,7 @@ describe('ReceiveLine', function () {
         expect($po->status)->toBe('received');
     });
 
-    it('creates receipt with lot number', function () {
+    it('creates receipt with lot number', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -191,7 +191,7 @@ describe('ReceiveLine', function () {
             ->and($receiptLine->stockMovement->lot_number)->toBe('LOT-2026-001');
     });
 
-    it('creates receipt with serial number', function () {
+    it('creates receipt with serial number', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -214,7 +214,7 @@ describe('ReceiveLine', function () {
             ->and($receiptLine->stockMovement->serial_number)->toBe('SN-12345');
     });
 
-    it('prevents over-receiving', function () {
+    it('prevents over-receiving', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -222,7 +222,7 @@ describe('ReceiveLine', function () {
                 PurchaseOrderLine::factory()
                     ->forItem($this->item->id)
                     ->state(['quantity' => 100]),
-                'lines'
+                'lines',
             )
             ->create();
 
@@ -240,7 +240,7 @@ describe('ReceiveLine', function () {
             ->toThrow(InvalidArgumentException::class, 'pending');
     });
 
-    it('cannot receive from draft PO', function () {
+    it('cannot receive from draft PO', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->draft()
@@ -262,8 +262,8 @@ describe('ReceiveLine', function () {
     });
 });
 
-describe('ReceiveMultipleLines', function () {
-    it('receives multiple lines at once', function () {
+describe('ReceiveMultipleLines', function (): void {
+    it('receives multiple lines at once', function (): void {
         $item2 = Item::factory()->create();
 
         $po = PurchaseOrder::factory()
@@ -273,13 +273,13 @@ describe('ReceiveMultipleLines', function () {
                 PurchaseOrderLine::factory()
                     ->forItem($this->item->id)
                     ->state(['quantity' => 100]),
-                'lines'
+                'lines',
             )
             ->has(
                 PurchaseOrderLine::factory()
                     ->forItem($item2->id)
                     ->state(['quantity' => 50]),
-                'lines'
+                'lines',
             )
             ->create();
 
@@ -307,7 +307,7 @@ describe('ReceiveMultipleLines', function () {
         expect($po->status)->toBe('received');
     });
 
-    it('creates single receipt for multiple lines', function () {
+    it('creates single receipt for multiple lines', function (): void {
         $item2 = Item::factory()->create();
 
         $po = PurchaseOrder::factory()
@@ -337,7 +337,7 @@ describe('ReceiveMultipleLines', function () {
             ->and($receipt->lines)->toHaveCount(2);
     });
 
-    it('receives from array format', function () {
+    it('receives from array format', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -359,7 +359,7 @@ describe('ReceiveMultipleLines', function () {
             ->and((float) $receipt->lines->first()->quantity)->toBe(50.0);
     });
 
-    it('fails with empty lines', function () {
+    it('fails with empty lines', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -372,8 +372,8 @@ describe('ReceiveMultipleLines', function () {
     });
 });
 
-describe('Receipt Model', function () {
-    it('belongs to purchase order', function () {
+describe('Receipt Model', function (): void {
+    it('belongs to purchase order', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
@@ -398,8 +398,8 @@ describe('Receipt Model', function () {
     });
 });
 
-describe('ReceiptLine Model', function () {
-    it('has all required relationships', function () {
+describe('ReceiptLine Model', function (): void {
+    it('has all required relationships', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()

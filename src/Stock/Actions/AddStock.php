@@ -28,7 +28,7 @@ final class AddStock
             [
                 'quantity' => 0,
                 'reserved_quantity' => 0,
-            ]
+            ],
         );
 
         // Update quantity and cost basis
@@ -74,7 +74,7 @@ final class AddStock
         $guard = config('inventory.actor.guard', 'web');
         $user = Auth::guard($guard)->user();
 
-        return $user !== null ? get_class($user) : null;
+        return $user !== null ? $user::class : null;
     }
 
     private function getActorId(): ?string

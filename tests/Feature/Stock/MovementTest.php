@@ -9,14 +9,14 @@ use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 use RobinsonRyan\Inventory\Stock\Services\StockService;
 use RobinsonRyan\Inventory\Stock\TagDefinitions\MovementTypeDefinition;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->stockService = App::make(StockService::class);
     $this->location = Location::factory()->warehouse()->create();
-    $this->itemId = (string) \Symfony\Component\Uid\Uuid::v7();
+    $this->itemId = (string) Symfony\Component\Uid\Uuid::v7();
 });
 
-describe('StockMovement Model', function () {
-    it('creates immutable movement records', function () {
+describe('StockMovement Model', function (): void {
+    it('creates immutable movement records', function (): void {
         $movement = $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
@@ -37,7 +37,7 @@ describe('StockMovement Model', function () {
             ->and($movement->notes)->toBe('Initial stock');
     });
 
-    it('prevents movement updates', function () {
+    it('prevents movement updates', function (): void {
         config(['inventory.rules.movement_immutable' => true]);
 
         $movement = $this->stockService->addStock(new AddStockData(
@@ -46,13 +46,13 @@ describe('StockMovement Model', function () {
             quantity: 100,
         ));
 
-        expect(function () use ($movement) {
+        expect(function () use ($movement): void {
             $movement->quantity = 200;
             $movement->save();
         })->toThrow(RuntimeException::class, 'Cannot update');
     });
 
-    it('prevents movement deletes', function () {
+    it('prevents movement deletes', function (): void {
         config(['inventory.rules.movement_immutable' => true]);
 
         $movement = $this->stockService->addStock(new AddStockData(
@@ -64,7 +64,7 @@ describe('StockMovement Model', function () {
         expect(fn () => $movement->delete())->toThrow(RuntimeException::class, 'Cannot delete');
     });
 
-    it('tracks movement types', function () {
+    it('tracks movement types', function (): void {
         // Purchase
         $purchase = $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
@@ -75,7 +75,7 @@ describe('StockMovement Model', function () {
         expect($purchase->type)->toBe('purchase');
 
         // Sale
-        $sale = $this->stockService->removeStock(new \RobinsonRyan\Inventory\Stock\Data\RemoveStockData(
+        $sale = $this->stockService->removeStock(new RobinsonRyan\Inventory\Stock\Data\RemoveStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
             quantity: 10,
@@ -85,7 +85,7 @@ describe('StockMovement Model', function () {
 
         // Transfer
         $location2 = Location::factory()->warehouse()->create();
-        $transfer = $this->stockService->transfer(new \RobinsonRyan\Inventory\Stock\Data\TransferData(
+        $transfer = $this->stockService->transfer(new RobinsonRyan\Inventory\Stock\Data\TransferData(
             itemId: $this->itemId,
             fromLocationId: $this->location->id,
             toLocationId: $location2->id,
@@ -94,7 +94,7 @@ describe('StockMovement Model', function () {
         expect($transfer->type)->toBe('transfer');
 
         // Adjustment
-        $adjustment = $this->stockService->adjust(new \RobinsonRyan\Inventory\Stock\Data\AdjustStockData(
+        $adjustment = $this->stockService->adjust(new RobinsonRyan\Inventory\Stock\Data\AdjustStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
             newQuantity: 50,
@@ -103,7 +103,7 @@ describe('StockMovement Model', function () {
         expect($adjustment->type)->toBe('adjustment');
     });
 
-    it('stores reference information', function () {
+    it('stores reference information', function (): void {
         $movement = $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
@@ -116,7 +116,7 @@ describe('StockMovement Model', function () {
             ->and($movement->reference_id)->toBe('PO-12345');
     });
 
-    it('stores lot and serial information', function () {
+    it('stores lot and serial information', function (): void {
         $movement = $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
@@ -129,7 +129,7 @@ describe('StockMovement Model', function () {
             ->and($movement->serial_number)->toBe('SN-12345');
     });
 
-    it('stores metadata', function () {
+    it('stores metadata', function (): void {
         $movement = $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
@@ -142,7 +142,7 @@ describe('StockMovement Model', function () {
             ->and($movement->metadata['invoice'])->toBe('INV-001');
     });
 
-    it('only has created_at timestamp', function () {
+    it('only has created_at timestamp', function (): void {
         $movement = $this->stockService->addStock(new AddStockData(
             itemId: $this->itemId,
             locationId: $this->location->id,
@@ -157,24 +157,24 @@ describe('StockMovement Model', function () {
     });
 });
 
-describe('MovementTypeDefinition', function () {
-    it('has correct slug', function () {
+describe('MovementTypeDefinition', function (): void {
+    it('has correct slug', function (): void {
         expect(MovementTypeDefinition::$slug)->toBe('movement-type');
     });
 
-    it('has correct name', function () {
+    it('has correct name', function (): void {
         expect(MovementTypeDefinition::$name)->toBe('Movement Type');
     });
 
-    it('is single select', function () {
+    it('is single select', function (): void {
         expect(MovementTypeDefinition::$singleSelect)->toBeTrue();
     });
 
-    it('is global', function () {
+    it('is global', function (): void {
         expect(MovementTypeDefinition::$global)->toBeTrue();
     });
 
-    it('has expected default values', function () {
+    it('has expected default values', function (): void {
         expect(MovementTypeDefinition::DEFAULT_VALUES)
             ->toContain('purchase')
             ->toContain('sale')

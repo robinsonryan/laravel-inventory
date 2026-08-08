@@ -10,6 +10,7 @@ use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 
 /**
  * @property string $id
@@ -73,8 +74,8 @@ final class CycleCountLine extends Model
     public function cycleCount(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.cycle_count', CycleCount::class),
-            'cycle_count_id'
+            ModelResolver::resolve('cycle_count', CycleCount::class),
+            'cycle_count_id',
         );
     }
 
@@ -84,8 +85,8 @@ final class CycleCountLine extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.item', Item::class),
-            'item_id'
+            ModelResolver::resolveAny('item', Item::class),
+            'item_id',
         );
     }
 
@@ -95,8 +96,8 @@ final class CycleCountLine extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.location', Location::class),
-            'location_id'
+            ModelResolver::resolve('location', Location::class),
+            'location_id',
         );
     }
 
@@ -106,8 +107,8 @@ final class CycleCountLine extends Model
     public function stock(): BelongsTo
     {
         return $this->belongsTo(
-            config('inventory.models.stock', Stock::class),
-            'stock_id'
+            ModelResolver::resolve('stock', Stock::class),
+            'stock_id',
         );
     }
 

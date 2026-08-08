@@ -7,8 +7,8 @@ use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
 use RobinsonRyan\Inventory\Reporting\Exporters\CsvExporter;
 
-describe('CsvExporter', function () {
-    it('exports basic data to CSV', function () {
+describe('CsvExporter', function (): void {
+    it('exports basic data to CSV', function (): void {
         $data = new ReportData(
             title: 'Test Report',
             columns: [
@@ -21,7 +21,7 @@ describe('CsvExporter', function () {
             ]),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         $lines = explode("\n", trim($csv));
@@ -32,7 +32,7 @@ describe('CsvExporter', function () {
             ->and($lines[2])->toBe('2,"Item Two"');
     });
 
-    it('exports without headers when configured', function () {
+    it('exports without headers when configured', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [new ColumnDefinition('id', 'ID')],
@@ -47,7 +47,7 @@ describe('CsvExporter', function () {
         expect(trim($csv))->toBe('1');
     });
 
-    it('uses custom delimiter', function () {
+    it('uses custom delimiter', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -66,7 +66,7 @@ describe('CsvExporter', function () {
             ->toContain('1;Test');
     });
 
-    it('formats currency values', function () {
+    it('formats currency values', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -79,7 +79,7 @@ describe('CsvExporter', function () {
             ]),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         expect($csv)->toContain('1234.50')
@@ -87,7 +87,7 @@ describe('CsvExporter', function () {
             ->toContain('0.00');
     });
 
-    it('formats number values', function () {
+    it('formats number values', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -100,7 +100,7 @@ describe('CsvExporter', function () {
             ]),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         expect($csv)->toContain('100')
@@ -108,7 +108,7 @@ describe('CsvExporter', function () {
             ->toContain('25.1234');
     });
 
-    it('formats date values', function () {
+    it('formats date values', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -120,14 +120,14 @@ describe('CsvExporter', function () {
             ]),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         expect($csv)->toContain('2026-01-15')
             ->toContain('2026-02-20');
     });
 
-    it('formats datetime values', function () {
+    it('formats datetime values', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -139,14 +139,14 @@ describe('CsvExporter', function () {
             ]),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         expect($csv)->toContain('2026-01-15 14:30:00')
             ->toContain('2026-02-20 10:15:30');
     });
 
-    it('handles null values', function () {
+    it('handles null values', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -159,7 +159,7 @@ describe('CsvExporter', function () {
             ]),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         $lines = explode("\n", trim($csv));
@@ -168,7 +168,7 @@ describe('CsvExporter', function () {
             ->and($lines[2])->toBe('2,value');
     });
 
-    it('handles missing columns in rows', function () {
+    it('handles missing columns in rows', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -180,7 +180,7 @@ describe('CsvExporter', function () {
             ]),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         $lines = explode("\n", trim($csv));
@@ -188,7 +188,7 @@ describe('CsvExporter', function () {
         expect($lines[1])->toBe('1,');
     });
 
-    it('escapes special characters', function () {
+    it('escapes special characters', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -201,21 +201,21 @@ describe('CsvExporter', function () {
             ]),
         );
 
-        $exporter = new CsvExporter();
+        $exporter = new CsvExporter;
         $csv = $exporter->export($data);
 
         expect($csv)->toContain('"Contains ""quotes"""')
             ->toContain('"Contains, comma"');
     });
 
-    it('returns correct content type', function () {
-        $exporter = new CsvExporter();
+    it('returns correct content type', function (): void {
+        $exporter = new CsvExporter;
 
         expect($exporter->getContentType())->toBe('text/csv');
     });
 
-    it('returns correct file extension', function () {
-        $exporter = new CsvExporter();
+    it('returns correct file extension', function (): void {
+        $exporter = new CsvExporter;
 
         expect($exporter->getFileExtension())->toBe('csv');
     });

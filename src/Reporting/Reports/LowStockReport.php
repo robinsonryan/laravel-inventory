@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace RobinsonRyan\Inventory\Reporting\Reports;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
+use RobinsonRyan\Inventory\Support\TableResolver;
 
 final class LowStockReport implements ReportInterface
 {
@@ -20,9 +22,9 @@ final class LowStockReport implements ReportInterface
 
     public function generate(): ReportData
     {
-        $stockTable = config('inventory.tables.stock', 'stock');
-        $itemsTable = config('inventory.tables.items', 'items');
-        $movementsTable = config('inventory.tables.stock_movements', 'stock_movements');
+        $stockTable = TableResolver::resolve('stock', 'stock');
+        $itemsTable = TableResolver::resolve('items', 'items');
+        $movementsTable = TableResolver::resolve('stock_movements', 'stock_movements');
 
         // Subquery to get average daily usage over last 30 days
         $avgUsageSubquery = DB::table($movementsTable)
@@ -37,7 +39,7 @@ final class LowStockReport implements ReportInterface
         // Main query: items with stock aggregated
         $query = DB::table($itemsTable)
             ->leftJoin($stockTable, "{$itemsTable}.id", '=', "{$stockTable}.item_id")
-            ->leftJoinSub($avgUsageSubquery, 'usage', function ($join) use ($itemsTable) {
+            ->leftJoinSub($avgUsageSubquery, 'usage', function ($join) use ($itemsTable): void {
                 $join->on("{$itemsTable}.id", '=', 'usage.item_id');
             })
             ->select([
@@ -66,24 +68,28 @@ final class LowStockReport implements ReportInterface
             $query->where("{$itemsTable}.category", $this->category);
         }
 
-        $rows = $query->get();
+        // Normalise the raw stdClass result rows to arrays once, here, rather
+        // than leaving every exporter to cast defensively.
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = $query->get()->map(fn (object $row): array => (array) $row);
 
         // Filter and calculate additional fields
-        $rows = $rows->map(function ($row) {
-            $available = (float) $row->available_quantity;
-            $minLevel = (int) $row->min_stock_level;
-            $avgUsage = (float) $row->average_daily_usage;
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = $rows->map(function (array $row): array {
+            $available = (float) $row['available_quantity'];
+            $minLevel = (int) $row['min_stock_level'];
+            $avgUsage = (float) $row['average_daily_usage'];
 
-            $row->shortfall = max(0, $minLevel - $available);
-            $row->days_of_stock = $avgUsage > 0 ? (int) floor($available / $avgUsage) : null;
+            $row['shortfall'] = max(0, $minLevel - $available);
+            $row['days_of_stock'] = $avgUsage > 0 ? (int) floor($available / $avgUsage) : null;
 
             return $row;
         });
 
         // Filter based on flags
-        $rows = $rows->filter(function ($row) {
-            $available = (float) $row->available_quantity;
-            $minLevel = (int) $row->min_stock_level;
+        $rows = $rows->filter(function (array $row): bool {
+            $available = (float) $row['available_quantity'];
+            $minLevel = (int) $row['min_stock_level'];
 
             // Only include items below minimum or at zero based on flags
             if ($available <= 0) {
@@ -127,7 +133,7 @@ final class LowStockReport implements ReportInterface
      */
     public function getColumns(): array
     {
-        return array_map(fn (ColumnDefinition $col) => $col->toArray(), $this->getColumnDefinitions());
+        return array_map(fn (ColumnDefinition $col): array => $col->toArray(), $this->getColumnDefinitions());
     }
 
     /**

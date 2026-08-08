@@ -29,7 +29,9 @@ final class GenerateReorderRecommendationsCommand extends Command
     {
         $tenantId = $this->option('tenant');
 
-        if ($tenantId !== null) {
+        // TODO(QUEUE): --tenant is accepted and echoed but never applied; the action
+        // takes item IDs, not a tenant. See QUEUE.md "Honour --tenant".
+        if (is_string($tenantId) && $tenantId !== '') {
             $this->info("Generating recommendations for tenant: {$tenantId}");
         } else {
             $this->info('Generating recommendations for all items...');
@@ -53,7 +55,7 @@ final class GenerateReorderRecommendationsCommand extends Command
                 $recommendation->item_id,
                 $recommendation->recommended_quantity,
                 number_format((float) $recommendation->available_quantity, 2),
-                $recommendation->min_stock_level ?? 'calculated'
+                $recommendation->min_stock_level ?? 'calculated',
             ));
         }
 

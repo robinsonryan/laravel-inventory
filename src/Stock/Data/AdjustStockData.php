@@ -45,6 +45,6 @@ final readonly class AdjustStockData
             'lot_number' => $this->lotNumber,
             'serial_number' => $this->serialNumber,
             'notes' => $this->notes,
-        ], fn ($value) => $value !== null);
+        ], fn (float|string|null $value): bool => $value !== null);
     }
 }

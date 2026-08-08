@@ -11,7 +11,7 @@ use RobinsonRyan\Inventory\Reconciliation\Models\CycleCountLine;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->location = Location::factory()->create();
     $this->item = Item::factory()->create();
     $this->stock = Stock::factory()
@@ -21,8 +21,8 @@ beforeEach(function () {
         ->create();
 });
 
-describe('RecordCount', function () {
-    it('records a count', function () {
+describe('RecordCount', function (): void {
+    it('records a count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -44,7 +44,7 @@ describe('RecordCount', function () {
             ->and($updated->isCounted())->toBeTrue();
     });
 
-    it('calculates variance', function () {
+    it('calculates variance', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -65,7 +65,7 @@ describe('RecordCount', function () {
             ->and($updated->hasVariance())->toBeTrue();
     });
 
-    it('calculates positive variance when more found', function () {
+    it('calculates positive variance when more found', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -85,7 +85,7 @@ describe('RecordCount', function () {
         expect((float) $updated->variance)->toBe(10.0);
     });
 
-    it('updates cycle count to in_progress when first count recorded', function () {
+    it('updates cycle count to in_progress when first count recorded', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -107,7 +107,7 @@ describe('RecordCount', function () {
             ->and($count->started_at)->not->toBeNull();
     });
 
-    it('adds notes to line', function () {
+    it('adds notes to line', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -127,7 +127,7 @@ describe('RecordCount', function () {
         expect($updated->notes)->toBe('Found 5 damaged items');
     });
 
-    it('cannot record count for approved cycle count', function () {
+    it('cannot record count for approved cycle count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->approved()
@@ -147,7 +147,7 @@ describe('RecordCount', function () {
             ->toThrow(InvalidArgumentException::class);
     });
 
-    it('cannot record count for cancelled cycle count', function () {
+    it('cannot record count for cancelled cycle count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->cancelled()
@@ -168,8 +168,8 @@ describe('RecordCount', function () {
     });
 });
 
-describe('CompleteCounting', function () {
-    it('marks count as complete', function () {
+describe('CompleteCounting', function (): void {
+    it('marks count as complete', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->inProgress()
@@ -193,7 +193,7 @@ describe('CompleteCounting', function () {
             ->and($completed->completed_at)->not->toBeNull();
     });
 
-    it('validates all lines counted before completion', function () {
+    it('validates all lines counted before completion', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->inProgress()
@@ -213,7 +213,7 @@ describe('CompleteCounting', function () {
             ->toThrow(InvalidArgumentException::class, 'not been counted');
     });
 
-    it('cannot complete a draft count', function () {
+    it('cannot complete a draft count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->draft()
@@ -225,7 +225,7 @@ describe('CompleteCounting', function () {
             ->toThrow(InvalidArgumentException::class, 'in_progress');
     });
 
-    it('cannot complete already pending count', function () {
+    it('cannot complete already pending count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->pending()
@@ -237,7 +237,7 @@ describe('CompleteCounting', function () {
             ->toThrow(InvalidArgumentException::class, 'in_progress');
     });
 
-    it('cannot complete approved count', function () {
+    it('cannot complete approved count', function (): void {
         $count = CycleCount::factory()
             ->forLocation($this->location)
             ->approved()
@@ -250,8 +250,8 @@ describe('CompleteCounting', function () {
     });
 });
 
-describe('CycleCountLine Model', function () {
-    it('checks if counted', function () {
+describe('CycleCountLine Model', function (): void {
+    it('checks if counted', function (): void {
         $line = new CycleCountLine([
             'expected_quantity' => 100,
         ]);
@@ -262,7 +262,7 @@ describe('CycleCountLine Model', function () {
         expect($line->isCounted())->toBeTrue();
     });
 
-    it('checks if has variance', function () {
+    it('checks if has variance', function (): void {
         $line = new CycleCountLine([
             'expected_quantity' => 100,
             'counted_quantity' => 100,
@@ -275,7 +275,7 @@ describe('CycleCountLine Model', function () {
         expect($line->hasVariance())->toBeTrue();
     });
 
-    it('calculates variance', function () {
+    it('calculates variance', function (): void {
         $line = new CycleCountLine([
             'expected_quantity' => 100,
             'counted_quantity' => 95,
@@ -284,7 +284,7 @@ describe('CycleCountLine Model', function () {
         expect($line->calculateVariance())->toBe(-5.0);
     });
 
-    it('returns zero variance when not counted', function () {
+    it('returns zero variance when not counted', function (): void {
         $line = new CycleCountLine([
             'expected_quantity' => 100,
         ]);

@@ -25,7 +25,7 @@ final class CancelPurchaseOrder
             /** @var PurchaseOrderLine $line */
             $pending = $line->getQuantityPending();
             if ($pending > 0) {
-                $line->quantity_cancelled = (float) $line->quantity_cancelled + $pending;
+                $line->quantity_cancelled = (string) ((float) $line->quantity_cancelled + $pending);
                 $line->save();
             }
         }
@@ -42,6 +42,6 @@ final class CancelPurchaseOrder
 
         $po->save();
 
-        return $po->fresh(['lines', 'vendor']);
+        return $po->fresh(['lines', 'vendor']) ?? $po;
     }
 }

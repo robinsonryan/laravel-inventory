@@ -11,8 +11,6 @@ use Illuminate\Database\Eloquent\Model;
  * Trait for models that belong to a tenant.
  *
  * @mixin Model
- *
- * @method static Builder query()
  */
 trait BelongsToTenant
 {
@@ -30,6 +28,11 @@ trait BelongsToTenant
 
     /**
      * Scope a query to a specific tenant.
+     *
+     * @template TModel of Model
+     *
+     * @param  Builder<TModel>  $query
+     * @return Builder<TModel>
      */
     public function scopeForTenant(Builder $query, ?string $tenantId): Builder
     {

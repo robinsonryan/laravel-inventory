@@ -39,6 +39,6 @@ final readonly class CycleCountData
             'item_ids' => $this->itemIds,
             'scheduled_date' => $this->scheduledDate,
             'notes' => $this->notes,
-        ], fn ($value) => $value !== null && $value !== []);
+        ], fn ($value): bool => $value !== null && $value !== []);
     }
 }

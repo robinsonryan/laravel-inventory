@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace RobinsonRyan\Inventory\Stock\Actions;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -21,18 +22,21 @@ final class ExecuteTransformation
     public function execute(
         Model $transformation,
         string $locationId,
-        float $quantity = 1.0
+        float $quantity = 1.0,
     ): Model {
         return DB::transaction(function () use ($transformation, $locationId, $quantity): Model {
-            // Validate transformation has required relationships
-            if (! method_exists($transformation, 'inputs') || ! method_exists($transformation, 'outputs')) {
+            // Validate transformation has required relationships. Resolving the
+            // relations themselves is a stronger check than method_exists(): the
+            // configured transformation model is swappable, so the relations are
+            // only guaranteed by convention.
+            $inputs = $transformation->getAttribute('inputs');
+            $outputs = $transformation->getAttribute('outputs');
+
+            if (! $inputs instanceof Collection || ! $outputs instanceof Collection) {
                 throw new InvalidArgumentException(
-                    'Transformation model must have inputs() and outputs() relationships.'
+                    'Transformation model must have inputs() and outputs() relationships.',
                 );
             }
-
-            $inputs = $transformation->inputs;
-            $outputs = $transformation->outputs;
 
             if ($inputs->isEmpty()) {
                 throw new InvalidArgumentException('Transformation has no inputs defined.');
@@ -44,17 +48,18 @@ final class ExecuteTransformation
 
             // Verify sufficient stock for all inputs
             foreach ($inputs as $input) {
-                $requiredQuantity = (float) $input->quantity * $quantity;
-                $availableStock = $this->getAvailableStock($input->item_id, $locationId);
+                $requiredQuantity = (float) $input->getAttribute('quantity') * $quantity;
+                $inputItemId = (string) $input->getAttribute('item_id');
+                $availableStock = $this->getAvailableStock($inputItemId, $locationId);
 
                 if ($availableStock < $requiredQuantity) {
                     throw new InvalidArgumentException(
                         sprintf(
                             'Insufficient stock for input item %s. Required: %.4f, Available: %.4f',
-                            $input->item_id,
+                            $inputItemId,
                             $requiredQuantity,
-                            $availableStock
-                        )
+                            $availableStock,
+                        ),
                     );
                 }
             }
@@ -63,7 +68,7 @@ final class ExecuteTransformation
             $assemblyModel = config('inventory.models.assembly');
             /** @var Model */
             $assembly = $assemblyModel::query()->create([
-                'transformation_id' => $transformation->id,
+                'transformation_id' => $transformation->getKey(),
                 'location_id' => $locationId,
                 'quantity' => $quantity,
                 'assembled_at' => now(),
@@ -73,24 +78,25 @@ final class ExecuteTransformation
 
             // Consume inputs
             foreach ($inputs as $input) {
-                $consumeQuantity = (float) $input->quantity * $quantity;
+                $consumeQuantity = (float) $input->getAttribute('quantity') * $quantity;
                 $this->consumeStock(
-                    $input->item_id,
+                    (string) $input->getAttribute('item_id'),
                     $locationId,
                     $consumeQuantity,
-                    $assembly
+                    $assembly,
                 );
             }
 
             // Produce outputs
             foreach ($outputs as $output) {
-                $produceQuantity = (float) $output->quantity * $quantity;
+                $produceQuantity = (float) $output->getAttribute('quantity') * $quantity;
+                $outputCost = $output->getAttribute('cost');
                 $this->produceStock(
-                    $output->item_id,
+                    (string) $output->getAttribute('item_id'),
                     $locationId,
                     $produceQuantity,
-                    $output->cost ?? null,
-                    $assembly
+                    is_numeric($outputCost) ? (float) $outputCost : null,
+                    $assembly,
                 );
             }
 
@@ -117,7 +123,7 @@ final class ExecuteTransformation
         string $itemId,
         string $locationId,
         float $quantity,
-        Model $assembly
+        Model $assembly,
     ): void {
         /** @var Stock */
         $stock = $this->getStockModel()::query()
@@ -135,8 +141,8 @@ final class ExecuteTransformation
             'to_location_id' => null,
             'quantity' => $quantity,
             'cost' => $stock->cost_basis,
-            'reference_type' => get_class($assembly),
-            'reference_id' => $assembly->id,
+            'reference_type' => $assembly::class,
+            'reference_id' => $assembly->getKey(),
             'actor_type' => $this->getActorType(),
             'actor_id' => $this->getActorId(),
             'notes' => 'Consumed for transformation',
@@ -150,7 +156,7 @@ final class ExecuteTransformation
         string $locationId,
         float $quantity,
         ?float $cost,
-        Model $assembly
+        Model $assembly,
     ): void {
         /** @var Stock */
         $stock = $this->getStockModel()::query()->firstOrCreate(
@@ -161,7 +167,7 @@ final class ExecuteTransformation
             [
                 'quantity' => 0,
                 'reserved_quantity' => 0,
-            ]
+            ],
         );
 
         $stock->quantity = (float) $stock->quantity + $quantity;
@@ -179,8 +185,8 @@ final class ExecuteTransformation
             'to_location_id' => $locationId,
             'quantity' => $quantity,
             'cost' => $cost,
-            'reference_type' => get_class($assembly),
-            'reference_id' => $assembly->id,
+            'reference_type' => $assembly::class,
+            'reference_id' => $assembly->getKey(),
             'actor_type' => $this->getActorType(),
             'actor_id' => $this->getActorId(),
             'notes' => 'Produced from transformation',
@@ -194,7 +200,7 @@ final class ExecuteTransformation
         $guard = config('inventory.actor.guard', 'web');
         $user = Auth::guard($guard)->user();
 
-        return $user !== null ? get_class($user) : null;
+        return $user !== null ? $user::class : null;
     }
 
     private function getActorId(): ?string

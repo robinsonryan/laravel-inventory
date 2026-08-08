@@ -12,7 +12,7 @@ use RobinsonRyan\Inventory\Reporting\Services\ReportService;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use Symfony\Component\Uid\Uuid;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->reportService = App::make(ReportService::class);
     $this->location = Location::factory()->warehouse()->create(['code' => 'WH1']);
     $this->item = Item::factory()->create(['sku' => 'TEST-001', 'name' => 'Test Item', 'cost' => 10.00]);
@@ -21,8 +21,8 @@ beforeEach(function () {
     $cycleCountsTable = config('inventory.tables.cycle_counts', 'cycle_counts');
     $cycleCountLinesTable = config('inventory.tables.cycle_count_lines', 'cycle_count_lines');
 
-    if (! \Illuminate\Support\Facades\Schema::hasTable($cycleCountsTable)) {
-        \Illuminate\Support\Facades\Schema::create($cycleCountsTable, function ($table) {
+    if (! Illuminate\Support\Facades\Schema::hasTable($cycleCountsTable)) {
+        Illuminate\Support\Facades\Schema::create($cycleCountsTable, function ($table): void {
             $table->uuid('id')->primary();
             $table->uuid('tenant_id')->nullable();
             $table->uuid('location_id');
@@ -33,8 +33,8 @@ beforeEach(function () {
         });
     }
 
-    if (! \Illuminate\Support\Facades\Schema::hasTable($cycleCountLinesTable)) {
-        \Illuminate\Support\Facades\Schema::create($cycleCountLinesTable, function ($table) {
+    if (! Illuminate\Support\Facades\Schema::hasTable($cycleCountLinesTable)) {
+        Illuminate\Support\Facades\Schema::create($cycleCountLinesTable, function ($table): void {
             $table->uuid('id')->primary();
             $table->uuid('cycle_count_id');
             $table->uuid('item_id');
@@ -46,8 +46,8 @@ beforeEach(function () {
     }
 });
 
-describe('VarianceReport', function () {
-    it('generates variance report', function () {
+describe('VarianceReport', function (): void {
+    it('generates variance report', function (): void {
         // Create approved cycle count with variance
         $cycleCountId = (string) Uuid::v7();
         DB::table(config('inventory.tables.cycle_counts', 'cycle_counts'))->insert([
@@ -71,19 +71,19 @@ describe('VarianceReport', function () {
             'updated_at' => Carbon::now(),
         ]);
 
-        $report = new VarianceReport();
+        $report = new VarianceReport;
         $data = $this->reportService->generate($report);
 
         expect($data)->toBeInstanceOf(ReportData::class)
             ->and($data->title)->toBe('Variance Report')
             ->and($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->item_sku)->toBe('TEST-001')
-            ->and((float) $data->rows->first()->expected_quantity)->toBe(100.0)
-            ->and((float) $data->rows->first()->counted_quantity)->toBe(95.0)
-            ->and((float) $data->rows->first()->variance)->toBe(-5.0);
+            ->and($data->rows->first()['item_sku'])->toBe('TEST-001')
+            ->and((float) $data->rows->first()['expected_quantity'])->toBe(100.0)
+            ->and((float) $data->rows->first()['counted_quantity'])->toBe(95.0)
+            ->and((float) $data->rows->first()['variance'])->toBe(-5.0);
     });
 
-    it('filters by date range', function () {
+    it('filters by date range', function (): void {
         // Create old cycle count
         $oldCycleCountId = (string) Uuid::v7();
         DB::table(config('inventory.tables.cycle_counts', 'cycle_counts'))->insert([
@@ -135,10 +135,10 @@ describe('VarianceReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->count_number)->toBe('CC-002');
+            ->and($data->rows->first()['count_number'])->toBe('CC-002');
     });
 
-    it('filters by location', function () {
+    it('filters by location', function (): void {
         $location2 = Location::factory()->warehouse()->create(['code' => 'WH2']);
 
         // Create cycle count at location 1
@@ -189,10 +189,10 @@ describe('VarianceReport', function () {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()->location_code)->toBe('WH1');
+            ->and($data->rows->first()['location_code'])->toBe('WH1');
     });
 
-    it('calculates cost impact', function () {
+    it('calculates cost impact', function (): void {
         $cycleCountId = (string) Uuid::v7();
         DB::table(config('inventory.tables.cycle_counts', 'cycle_counts'))->insert([
             'id' => $cycleCountId,
@@ -214,16 +214,16 @@ describe('VarianceReport', function () {
             'updated_at' => Carbon::now(),
         ]);
 
-        $report = new VarianceReport();
+        $report = new VarianceReport;
         $data = $this->reportService->generate($report);
 
         // Cost impact = (95 - 100) * 10 = -50
-        expect((float) $data->rows->first()->cost_impact)->toBe(-50.0)
+        expect((float) $data->rows->first()['cost_impact'])->toBe(-50.0)
             ->and($data->getSummary('total_cost_impact'))->toBe(-50.0)
             ->and($data->getSummary('negative_variances'))->toBe(1);
     });
 
-    it('only includes approved cycle counts', function () {
+    it('only includes approved cycle counts', function (): void {
         // Create pending cycle count (should not appear)
         $pendingId = (string) Uuid::v7();
         DB::table(config('inventory.tables.cycle_counts', 'cycle_counts'))->insert([
@@ -246,7 +246,7 @@ describe('VarianceReport', function () {
             'updated_at' => Carbon::now(),
         ]);
 
-        $report = new VarianceReport();
+        $report = new VarianceReport;
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(0);

@@ -6,8 +6,8 @@ use Illuminate\Support\Carbon;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
 
-describe('ReportData', function () {
-    it('creates report data with all properties', function () {
+describe('ReportData', function (): void {
+    it('creates report data with all properties', function (): void {
         $columns = [
             new ColumnDefinition('id', 'ID'),
             new ColumnDefinition('name', 'Name'),
@@ -36,7 +36,7 @@ describe('ReportData', function () {
             ->and($data->generatedAt)->toBe($generatedAt);
     });
 
-    it('gets column by key', function () {
+    it('gets column by key', function (): void {
         $columns = [
             new ColumnDefinition('id', 'ID'),
             new ColumnDefinition('name', 'Name', ColumnDefinition::TYPE_STRING),
@@ -60,7 +60,7 @@ describe('ReportData', function () {
             ->and($column['type'])->toBe('string');
     });
 
-    it('returns null for unknown column', function () {
+    it('returns null for unknown column', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [new ColumnDefinition('id', 'ID')],
@@ -70,7 +70,7 @@ describe('ReportData', function () {
         expect($data->getColumn('unknown'))->toBeNull();
     });
 
-    it('gets summary value', function () {
+    it('gets summary value', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [],
@@ -88,7 +88,7 @@ describe('ReportData', function () {
             ->and($data->getSummary('unknown'))->toBeNull();
     });
 
-    it('converts to array', function () {
+    it('converts to array', function (): void {
         $generatedAt = Carbon::parse('2026-01-15 10:00:00');
 
         $data = new ReportData(
@@ -119,12 +119,11 @@ describe('ReportData', function () {
             ->and($array['generated_at'])->toBe($generatedAt->toIso8601String());
     });
 
-    it('handles null generated_at in toArray', function () {
+    it('handles null generated_at in toArray', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [],
             rows: collect([]),
-            generatedAt: null,
         );
 
         $array = $data->toArray();
@@ -132,7 +131,7 @@ describe('ReportData', function () {
         expect($array['generated_at'])->toBeNull();
     });
 
-    it('gets column keys', function () {
+    it('gets column keys', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -148,7 +147,7 @@ describe('ReportData', function () {
         expect($keys)->toBe(['id', 'name', 'value']);
     });
 
-    it('gets column labels', function () {
+    it('gets column labels', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -164,7 +163,7 @@ describe('ReportData', function () {
         expect($labels)->toBe(['ID', 'Full Name', 'Total Value']);
     });
 
-    it('checks if empty', function () {
+    it('checks if empty', function (): void {
         $emptyData = new ReportData(
             title: 'Empty',
             columns: [],

@@ -12,8 +12,8 @@ use RobinsonRyan\Inventory\Stock\Data\RemoveStockData;
 use RobinsonRyan\Inventory\Stock\Data\TransferData;
 use RobinsonRyan\Inventory\Stock\Services\StockService;
 
-describe('AddStockData', function () {
-    it('creates from constructor', function () {
+describe('AddStockData', function (): void {
+    it('creates from constructor', function (): void {
         $data = new AddStockData(
             itemId: 'item-123',
             locationId: 'loc-456',
@@ -23,7 +23,6 @@ describe('AddStockData', function () {
             referenceType: 'purchase_order',
             referenceId: 'PO-001',
             lotNumber: 'LOT-001',
-            serialNumber: null,
             notes: 'Test notes',
             metadata: ['key' => 'value'],
         );
@@ -41,7 +40,7 @@ describe('AddStockData', function () {
             ->and($data->metadata)->toBe(['key' => 'value']);
     });
 
-    it('creates from array', function () {
+    it('creates from array', function (): void {
         $data = AddStockData::fromArray([
             'item_id' => 'item-123',
             'location_id' => 'loc-456',
@@ -56,7 +55,7 @@ describe('AddStockData', function () {
             ->and($data->cost)->toBe(15.0);
     });
 
-    it('converts to array', function () {
+    it('converts to array', function (): void {
         $data = new AddStockData(
             itemId: 'item-123',
             locationId: 'loc-456',
@@ -74,8 +73,8 @@ describe('AddStockData', function () {
     });
 });
 
-describe('RemoveStockData', function () {
-    it('creates with defaults', function () {
+describe('RemoveStockData', function (): void {
+    it('creates with defaults', function (): void {
         $data = new RemoveStockData(
             itemId: 'item-123',
             locationId: 'loc-456',
@@ -86,7 +85,7 @@ describe('RemoveStockData', function () {
             ->and($data->type)->toBe('sale');
     });
 
-    it('creates from array', function () {
+    it('creates from array', function (): void {
         $data = RemoveStockData::fromArray([
             'item_id' => 'item-123',
             'location_id' => 'loc-456',
@@ -98,8 +97,8 @@ describe('RemoveStockData', function () {
     });
 });
 
-describe('TransferData', function () {
-    it('creates transfer data', function () {
+describe('TransferData', function (): void {
+    it('creates transfer data', function (): void {
         $data = new TransferData(
             itemId: 'item-123',
             fromLocationId: 'loc-from',
@@ -115,7 +114,7 @@ describe('TransferData', function () {
             ->and($data->notes)->toBe('Transfer for production');
     });
 
-    it('creates from array', function () {
+    it('creates from array', function (): void {
         $data = TransferData::fromArray([
             'item_id' => 'item-123',
             'from_location_id' => 'loc-from',
@@ -128,8 +127,8 @@ describe('TransferData', function () {
     });
 });
 
-describe('AdjustStockData', function () {
-    it('creates adjustment data', function () {
+describe('AdjustStockData', function (): void {
+    it('creates adjustment data', function (): void {
         $data = new AdjustStockData(
             itemId: 'item-123',
             locationId: 'loc-456',
@@ -144,7 +143,7 @@ describe('AdjustStockData', function () {
             ->and($data->notes)->toBe('Counted by John');
     });
 
-    it('creates from array', function () {
+    it('creates from array', function (): void {
         $data = AdjustStockData::fromArray([
             'item_id' => 'item-123',
             'location_id' => 'loc-456',
@@ -157,13 +156,13 @@ describe('AdjustStockData', function () {
     });
 });
 
-describe('StockService Dependencies', function () {
-    it('can be instantiated with actions', function () {
+describe('StockService Dependencies', function (): void {
+    it('can be instantiated with actions', function (): void {
         $service = new StockService(
-            new AddStock(),
-            new RemoveStock(),
-            new TransferStock(),
-            new AdjustStock(),
+            new AddStock,
+            new RemoveStock,
+            new TransferStock,
+            new AdjustStock,
         );
 
         expect($service)->toBeInstanceOf(StockService::class);

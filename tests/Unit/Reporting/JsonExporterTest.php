@@ -7,8 +7,8 @@ use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
 use RobinsonRyan\Inventory\Reporting\Exporters\JsonExporter;
 
-describe('JsonExporter', function () {
-    it('exports basic data to JSON', function () {
+describe('JsonExporter', function (): void {
+    it('exports basic data to JSON', function (): void {
         $data = new ReportData(
             title: 'Test Report',
             columns: [
@@ -23,7 +23,7 @@ describe('JsonExporter', function () {
             generatedAt: Carbon::parse('2026-01-15 10:00:00'),
         );
 
-        $exporter = new JsonExporter();
+        $exporter = new JsonExporter;
         $json = $exporter->export($data);
         $decoded = json_decode($json, true);
 
@@ -35,7 +35,7 @@ describe('JsonExporter', function () {
             ->and($decoded['summary']['count'])->toBe(2);
     });
 
-    it('includes metadata by default', function () {
+    it('includes metadata by default', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [new ColumnDefinition('id', 'ID')],
@@ -44,7 +44,7 @@ describe('JsonExporter', function () {
             generatedAt: Carbon::now(),
         );
 
-        $exporter = new JsonExporter();
+        $exporter = new JsonExporter;
         $json = $exporter->export($data);
         $decoded = json_decode($json, true);
 
@@ -55,7 +55,7 @@ describe('JsonExporter', function () {
             ->toHaveKey('rows');
     });
 
-    it('excludes metadata when configured', function () {
+    it('excludes metadata when configured', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [new ColumnDefinition('id', 'ID')],
@@ -77,7 +77,7 @@ describe('JsonExporter', function () {
         expect($decoded['rows'])->toHaveCount(1);
     });
 
-    it('pretty prints when configured', function () {
+    it('pretty prints when configured', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [],
@@ -96,14 +96,14 @@ describe('JsonExporter', function () {
             ->and($prettyJson)->toContain("\n");
     });
 
-    it('handles empty rows', function () {
+    it('handles empty rows', function (): void {
         $data = new ReportData(
             title: 'Empty Report',
             columns: [new ColumnDefinition('id', 'ID')],
             rows: collect([]),
         );
 
-        $exporter = new JsonExporter();
+        $exporter = new JsonExporter;
         $json = $exporter->export($data);
         $decoded = json_decode($json, true);
 
@@ -111,7 +111,7 @@ describe('JsonExporter', function () {
             ->toBeEmpty();
     });
 
-    it('converts row objects to arrays', function () {
+    it('converts row objects to arrays', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -132,7 +132,7 @@ describe('JsonExporter', function () {
             ->and($decoded['rows'][0]['data'])->toBe(['nested' => 'value']);
     });
 
-    it('includes column definitions with metadata', function () {
+    it('includes column definitions with metadata', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [
@@ -154,22 +154,21 @@ describe('JsonExporter', function () {
             ->and($decoded['columns'][1]['format'])->toBe('0.00');
     });
 
-    it('handles null generated_at', function () {
+    it('handles null generated_at', function (): void {
         $data = new ReportData(
             title: 'Test',
             columns: [],
             rows: collect([]),
-            generatedAt: null,
         );
 
-        $exporter = new JsonExporter();
+        $exporter = new JsonExporter;
         $json = $exporter->export($data);
         $decoded = json_decode($json, true);
 
         expect($decoded['generated_at'])->toBeNull();
     });
 
-    it('produces valid JSON', function () {
+    it('produces valid JSON', function (): void {
         $data = new ReportData(
             title: 'Test with "quotes" and special chars',
             columns: [new ColumnDefinition('text', 'Text')],
@@ -180,7 +179,7 @@ describe('JsonExporter', function () {
             ]),
         );
 
-        $exporter = new JsonExporter();
+        $exporter = new JsonExporter;
         $json = $exporter->export($data);
 
         // Should not throw
@@ -189,14 +188,14 @@ describe('JsonExporter', function () {
         expect($decoded)->toBeArray();
     });
 
-    it('returns correct content type', function () {
-        $exporter = new JsonExporter();
+    it('returns correct content type', function (): void {
+        $exporter = new JsonExporter;
 
         expect($exporter->getContentType())->toBe('application/json');
     });
 
-    it('returns correct file extension', function () {
-        $exporter = new JsonExporter();
+    it('returns correct file extension', function (): void {
+        $exporter = new JsonExporter;
 
         expect($exporter->getFileExtension())->toBe('json');
     });

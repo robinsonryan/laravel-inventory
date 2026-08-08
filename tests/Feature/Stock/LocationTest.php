@@ -5,8 +5,8 @@ declare(strict_types=1);
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\TagDefinitions\LocationTypeDefinition;
 
-describe('Location Model', function () {
-    it('creates a location', function () {
+describe('Location Model', function (): void {
+    it('creates a location', function (): void {
         $location = Location::factory()->create([
             'code' => 'WH-001',
             'name' => 'Main Warehouse',
@@ -21,7 +21,7 @@ describe('Location Model', function () {
             ->and($location->is_receivable)->toBeTrue();
     });
 
-    it('creates nested locations', function () {
+    it('creates nested locations', function (): void {
         $warehouse = Location::factory()->warehouse()->create([
             'code' => 'WH-001',
             'name' => 'Main Warehouse',
@@ -38,7 +38,7 @@ describe('Location Model', function () {
             ->and($warehouse->children->first()->id)->toBe($bin->id);
     });
 
-    it('sets location type via tag', function () {
+    it('sets location type via tag', function (): void {
         $location = Location::factory()->create();
         $location->type = 'warehouse';
 
@@ -51,7 +51,7 @@ describe('Location Model', function () {
         expect($location->type)->toBe('quarantine');
     });
 
-    it('creates locations with factory states', function () {
+    it('creates locations with factory states', function (): void {
         $warehouse = Location::factory()->warehouse()->create();
         expect($warehouse->type)->toBe('warehouse');
 
@@ -78,13 +78,13 @@ describe('Location Model', function () {
             ->and($quarantine->is_pickable)->toBeFalse();
     });
 
-    it('creates inactive location', function () {
+    it('creates inactive location', function (): void {
         $location = Location::factory()->inactive()->create();
 
         expect($location->is_active)->toBeFalse();
     });
 
-    it('casts metadata to array', function () {
+    it('casts metadata to array', function (): void {
         $location = Location::factory()->create([
             'metadata' => ['capacity' => 1000, 'zone' => 'A'],
         ]);
@@ -95,24 +95,24 @@ describe('Location Model', function () {
     });
 });
 
-describe('LocationTypeDefinition', function () {
-    it('has correct slug', function () {
+describe('LocationTypeDefinition', function (): void {
+    it('has correct slug', function (): void {
         expect(LocationTypeDefinition::$slug)->toBe('location-type');
     });
 
-    it('has correct name', function () {
+    it('has correct name', function (): void {
         expect(LocationTypeDefinition::$name)->toBe('Location Type');
     });
 
-    it('is single select', function () {
+    it('is single select', function (): void {
         expect(LocationTypeDefinition::$singleSelect)->toBeTrue();
     });
 
-    it('is global', function () {
+    it('is global', function (): void {
         expect(LocationTypeDefinition::$global)->toBeTrue();
     });
 
-    it('has expected default values', function () {
+    it('has expected default values', function (): void {
         expect(LocationTypeDefinition::DEFAULT_VALUES)
             ->toContain('warehouse')
             ->toContain('bin')

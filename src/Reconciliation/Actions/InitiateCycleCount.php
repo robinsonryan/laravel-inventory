@@ -12,10 +12,10 @@ use RobinsonRyan\Inventory\Reconciliation\Models\CycleCountLine;
 use RobinsonRyan\Inventory\Reconciliation\Services\ReconciliationService;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 
-final class InitiateCycleCount
+final readonly class InitiateCycleCount
 {
     public function __construct(
-        private readonly ReconciliationService $service,
+        private ReconciliationService $service,
     ) {}
 
     /**
@@ -40,7 +40,7 @@ final class InitiateCycleCount
             // Create lines based on item selection
             $this->createLines($cycleCount, $data);
 
-            return $cycleCount->fresh(['lines', 'location']);
+            return $cycleCount->fresh(['lines', 'location']) ?? $cycleCount;
         });
     }
 

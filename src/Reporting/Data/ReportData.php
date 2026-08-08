@@ -55,7 +55,7 @@ final readonly class ReportData
     {
         return [
             'title' => $this->title,
-            'columns' => array_map(fn (ColumnDefinition $col) => $col->toArray(), $this->columns),
+            'columns' => array_map(fn (ColumnDefinition $col): array => $col->toArray(), $this->columns),
             'rows' => $this->rows->toArray(),
             'summary' => $this->summary,
             'generated_at' => $this->generatedAt?->toIso8601String(),
@@ -69,7 +69,7 @@ final readonly class ReportData
      */
     public function getColumnKeys(): array
     {
-        return array_map(fn (ColumnDefinition $col) => $col->key, $this->columns);
+        return array_map(fn (ColumnDefinition $col): string => $col->key, $this->columns);
     }
 
     /**
@@ -79,7 +79,7 @@ final readonly class ReportData
      */
     public function getColumnLabels(): array
     {
-        return array_map(fn (ColumnDefinition $col) => $col->label, $this->columns);
+        return array_map(fn (ColumnDefinition $col): string => $col->label, $this->columns);
     }
 
     /**

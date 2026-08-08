@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace RobinsonRyan\Inventory\Stock\Database\Factories;
+namespace RobinsonRyan\Inventory\Database\Factories\Stock;
 
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use RobinsonRyan\Inventory\Stock\Models\Location;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
@@ -78,7 +79,7 @@ final class StockFactory extends Factory
         ]);
     }
 
-    public function withExpiry(\DateTimeInterface $date): self
+    public function withExpiry(DateTimeInterface $date): self
     {
         return $this->state(fn (): array => [
             'expiry_date' => $date,

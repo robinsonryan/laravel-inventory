@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Illuminate\Support\Collection;
 use RobinsonRyan\Inventory\Contracts\JobContract;
 use RobinsonRyan\Inventory\Jobs\Listeners\ConsumeOnJobCompleted;
 use RobinsonRyan\Inventory\Jobs\Listeners\ReleaseOnJobCancelled;
@@ -11,18 +10,19 @@ use RobinsonRyan\Inventory\Stock\Data\ReservationData;
 use RobinsonRyan\Inventory\Stock\Models\Reservation;
 use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 
-describe('ReserveOnJobCreated', function () {
-    it('extracts job from event->job property', function () {
+describe('ReserveOnJobCreated', function (): void {
+    it('extracts job from event->job property', function (): void {
         $mockService = Mockery::mock(ReservationService::class);
         $mockService->shouldReceive('canReserve')->andReturn(true);
         $mockService->shouldReceive('reserve')->andReturn(
-            Mockery::mock(Reservation::class)
+            Mockery::mock(Reservation::class),
         );
 
         $listener = new ReserveOnJobCreated($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-001');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -31,17 +31,18 @@ describe('ReserveOnJobCreated', function () {
         $mockService->shouldHaveReceived('reserve')->once();
     });
 
-    it('extracts job from event->workOrder property', function () {
+    it('extracts job from event->workOrder property', function (): void {
         $mockService = Mockery::mock(ReservationService::class);
         $mockService->shouldReceive('canReserve')->andReturn(true);
         $mockService->shouldReceive('reserve')->andReturn(
-            Mockery::mock(Reservation::class)
+            Mockery::mock(Reservation::class),
         );
 
         $listener = new ReserveOnJobCreated($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-002');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $workOrder) {}
         };
 
@@ -50,17 +51,18 @@ describe('ReserveOnJobCreated', function () {
         $mockService->shouldHaveReceived('reserve')->once();
     });
 
-    it('extracts job from event->model property', function () {
+    it('extracts job from event->model property', function (): void {
         $mockService = Mockery::mock(ReservationService::class);
         $mockService->shouldReceive('canReserve')->andReturn(true);
         $mockService->shouldReceive('reserve')->andReturn(
-            Mockery::mock(Reservation::class)
+            Mockery::mock(Reservation::class),
         );
 
         $listener = new ReserveOnJobCreated($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-003');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $model) {}
         };
 
@@ -69,7 +71,7 @@ describe('ReserveOnJobCreated', function () {
         $mockService->shouldHaveReceived('reserve')->once();
     });
 
-    it('does nothing when event has no job property', function () {
+    it('does nothing when event has no job property', function (): void {
         $mockService = Mockery::mock(ReservationService::class);
 
         $listener = new ReserveOnJobCreated($mockService);
@@ -81,17 +83,19 @@ describe('ReserveOnJobCreated', function () {
         $mockService->shouldNotHaveReceived('reserve');
     });
 
-    it('does nothing when job does not implement JobContract', function () {
+    it('does nothing when job does not implement JobContract', function (): void {
         $mockService = Mockery::mock(ReservationService::class);
 
         $listener = new ReserveOnJobCreated($mockService);
 
-        $event = new class {
+        $event = new class
+        {
             public object $job;
 
             public function __construct()
             {
-                $this->job = new class {
+                $this->job = new class
+                {
                     public string $id = 'not-a-job';
                 };
             }
@@ -102,24 +106,23 @@ describe('ReserveOnJobCreated', function () {
         $mockService->shouldNotHaveReceived('reserve');
     });
 
-    it('creates reservation with correct data', function () {
+    it('creates reservation with correct data', function (): void {
         $mockService = Mockery::mock(ReservationService::class);
         $mockService->shouldReceive('canReserve')
             ->with('item-123', 25.0)
             ->andReturn(true);
 
         $mockService->shouldReceive('reserve')
-            ->withArgs(function (ReservationData $data) {
-                return $data->itemId === 'item-123'
-                    && $data->quantity === 25.0
-                    && $data->lineId === 'line-001';
-            })
+            ->withArgs(fn (ReservationData $data): bool => $data->itemId === 'item-123'
+                && $data->quantity === 25.0
+                && $data->lineId === 'line-001')
             ->andReturn(Mockery::mock(Reservation::class));
 
         $listener = new ReserveOnJobCreated($mockService);
 
         $job = createUnitTestMockJobWithLine('item-123', 25, 'WO-004', 'line-001');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -129,8 +132,8 @@ describe('ReserveOnJobCreated', function () {
     });
 });
 
-describe('ConsumeOnJobCompleted', function () {
-    it('fulfills all reserved reservations', function () {
+describe('ConsumeOnJobCompleted', function (): void {
+    it('fulfills all reserved reservations', function (): void {
         $reservation1 = Mockery::mock(Reservation::class);
         $reservation1->status = 'reserved';
 
@@ -142,12 +145,13 @@ describe('ConsumeOnJobCompleted', function () {
             ->andReturn(collect([$reservation1, $reservation2]));
         $mockService->shouldReceive('fulfill')
             ->twice()
-            ->andReturn(Mockery::mock(\RobinsonRyan\Inventory\Stock\Models\StockMovement::class));
+            ->andReturn(Mockery::mock(RobinsonRyan\Inventory\Stock\Models\StockMovement::class));
 
         $listener = new ConsumeOnJobCompleted($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-010');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -156,7 +160,7 @@ describe('ConsumeOnJobCompleted', function () {
         $mockService->shouldHaveReceived('fulfill')->twice();
     });
 
-    it('fulfills partial reservations', function () {
+    it('fulfills partial reservations', function (): void {
         $reservation = Mockery::mock(Reservation::class);
         $reservation->status = 'partial';
 
@@ -165,12 +169,13 @@ describe('ConsumeOnJobCompleted', function () {
             ->andReturn(collect([$reservation]));
         $mockService->shouldReceive('fulfill')
             ->once()
-            ->andReturn(Mockery::mock(\RobinsonRyan\Inventory\Stock\Models\StockMovement::class));
+            ->andReturn(Mockery::mock(RobinsonRyan\Inventory\Stock\Models\StockMovement::class));
 
         $listener = new ConsumeOnJobCompleted($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-011');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -179,7 +184,7 @@ describe('ConsumeOnJobCompleted', function () {
         $mockService->shouldHaveReceived('fulfill')->once();
     });
 
-    it('skips already fulfilled reservations', function () {
+    it('skips already fulfilled reservations', function (): void {
         $reservation = Mockery::mock(Reservation::class);
         $reservation->status = 'fulfilled';
 
@@ -190,7 +195,8 @@ describe('ConsumeOnJobCompleted', function () {
         $listener = new ConsumeOnJobCompleted($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-012');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -199,7 +205,7 @@ describe('ConsumeOnJobCompleted', function () {
         $mockService->shouldNotHaveReceived('fulfill');
     });
 
-    it('skips cancelled reservations', function () {
+    it('skips cancelled reservations', function (): void {
         $reservation = Mockery::mock(Reservation::class);
         $reservation->status = 'cancelled';
 
@@ -210,7 +216,8 @@ describe('ConsumeOnJobCompleted', function () {
         $listener = new ConsumeOnJobCompleted($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-013');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -220,8 +227,8 @@ describe('ConsumeOnJobCompleted', function () {
     });
 });
 
-describe('ReleaseOnJobCancelled', function () {
-    it('releases pending reservations', function () {
+describe('ReleaseOnJobCancelled', function (): void {
+    it('releases pending reservations', function (): void {
         $reservation = Mockery::mock(Reservation::class);
         $reservation->status = 'pending';
         $reservation->shouldReceive('refresh');
@@ -235,7 +242,8 @@ describe('ReleaseOnJobCancelled', function () {
         $listener = new ReleaseOnJobCancelled($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-020');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -244,7 +252,7 @@ describe('ReleaseOnJobCancelled', function () {
         $mockService->shouldHaveReceived('release')->once();
     });
 
-    it('releases reserved reservations', function () {
+    it('releases reserved reservations', function (): void {
         $reservation = Mockery::mock(Reservation::class);
         $reservation->status = 'reserved';
         $reservation->shouldReceive('refresh');
@@ -258,7 +266,8 @@ describe('ReleaseOnJobCancelled', function () {
         $listener = new ReleaseOnJobCancelled($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-021');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -267,7 +276,7 @@ describe('ReleaseOnJobCancelled', function () {
         $mockService->shouldHaveReceived('release')->once();
     });
 
-    it('releases partial reservations', function () {
+    it('releases partial reservations', function (): void {
         $reservation = Mockery::mock(Reservation::class);
         $reservation->status = 'partial';
         $reservation->shouldReceive('refresh');
@@ -281,7 +290,8 @@ describe('ReleaseOnJobCancelled', function () {
         $listener = new ReleaseOnJobCancelled($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-022');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -290,7 +300,7 @@ describe('ReleaseOnJobCancelled', function () {
         $mockService->shouldHaveReceived('release')->once();
     });
 
-    it('skips fulfilled reservations', function () {
+    it('skips fulfilled reservations', function (): void {
         $reservation = Mockery::mock(Reservation::class);
         $reservation->status = 'fulfilled';
 
@@ -301,7 +311,8 @@ describe('ReleaseOnJobCancelled', function () {
         $listener = new ReleaseOnJobCancelled($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-023');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -310,7 +321,7 @@ describe('ReleaseOnJobCancelled', function () {
         $mockService->shouldNotHaveReceived('release');
     });
 
-    it('skips already cancelled reservations', function () {
+    it('skips already cancelled reservations', function (): void {
         $reservation = Mockery::mock(Reservation::class);
         $reservation->status = 'cancelled';
 
@@ -321,7 +332,8 @@ describe('ReleaseOnJobCancelled', function () {
         $listener = new ReleaseOnJobCancelled($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-024');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -330,7 +342,7 @@ describe('ReleaseOnJobCancelled', function () {
         $mockService->shouldNotHaveReceived('release');
     });
 
-    it('skips expired reservations', function () {
+    it('skips expired reservations', function (): void {
         $reservation = Mockery::mock(Reservation::class);
         $reservation->status = 'expired';
 
@@ -341,7 +353,8 @@ describe('ReleaseOnJobCancelled', function () {
         $listener = new ReleaseOnJobCancelled($mockService);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-025');
-        $event = new class($job) {
+        $event = new class($job)
+        {
             public function __construct(public JobContract $job) {}
         };
 
@@ -356,7 +369,8 @@ describe('ReleaseOnJobCancelled', function () {
  */
 function createUnitTestMockJob(string $itemId, float $quantity, string $jobId): JobContract
 {
-    return new class($itemId, $quantity, $jobId) implements JobContract {
+    return new class($itemId, $quantity, $jobId) implements JobContract
+    {
         public function __construct(
             private readonly string $itemId,
             private readonly float $quantity,
@@ -395,7 +409,8 @@ function createUnitTestMockJob(string $itemId, float $quantity, string $jobId): 
  */
 function createUnitTestMockJobWithLine(string $itemId, float $quantity, string $jobId, string $lineId): JobContract
 {
-    return new class($itemId, $quantity, $jobId, $lineId) implements JobContract {
+    return new class($itemId, $quantity, $jobId, $lineId) implements JobContract
+    {
         public function __construct(
             private readonly string $itemId,
             private readonly float $quantity,

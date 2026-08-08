@@ -26,6 +26,6 @@ final class SubmitPurchaseOrder
         $po->submitted_at = now();
         $po->save();
 
-        return $po->fresh(['lines', 'vendor']);
+        return $po->fresh(['lines', 'vendor']) ?? $po;
     }
 }
