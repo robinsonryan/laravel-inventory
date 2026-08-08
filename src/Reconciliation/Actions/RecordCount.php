@@ -23,9 +23,9 @@ final class RecordCount
         $cycleCount = $line->cycleCount;
         $this->validateCountable($cycleCount);
 
-        // Update to in_progress if still draft
+        // Start the count on the first line recorded
         if ($cycleCount->status === 'draft') {
-            $cycleCount->status = 'in_progress';
+            $cycleCount->status = 'in-progress';
             $cycleCount->started_at = now();
             $cycleCount->save();
         }
@@ -53,12 +53,14 @@ final class RecordCount
      */
     private function validateCountable(CycleCount $cycleCount): void
     {
-        $allowedStatuses = ['draft', 'in_progress'];
+        // Taxon slugifies every tag value it stores, so the persisted spelling is
+        // "in-progress" — never the underscored form.
+        $allowedStatuses = ['draft', 'in-progress'];
 
         if (! in_array($cycleCount->status, $allowedStatuses, true)) {
             throw new InvalidArgumentException(
                 sprintf(
-                    'Cannot record count for cycle count in status "%s". Count must be in "draft" or "in_progress" status.',
+                    'Cannot record count for cycle count in status "%s". Count must be in "draft" or "in-progress" status.',
                     $cycleCount->status,
                 ),
             );

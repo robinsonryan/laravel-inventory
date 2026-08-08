@@ -10,7 +10,12 @@ use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
+use RobinsonRyan\Inventory\Reporting\Support\TagRowValues;
+use RobinsonRyan\Inventory\Stock\Models\Reservation;
+use RobinsonRyan\Inventory\Stock\TagDefinitions\ReservationStatusDefinition;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 use RobinsonRyan\Inventory\Support\TableResolver;
+use RobinsonRyan\Inventory\Support\TagQuery;
 
 final class ReservationReport implements ReportInterface
 {
@@ -32,7 +37,6 @@ final class ReservationReport implements ReportInterface
             ->leftJoin($locationsTable, "{$reservationsTable}.location_id", '=', "{$locationsTable}.id")
             ->select([
                 "{$reservationsTable}.id as reservation_id",
-                "{$reservationsTable}.status",
                 "{$reservationsTable}.reserved_at",
                 "{$reservationsTable}.expires_at",
                 "{$reservationsTable}.item_id",
@@ -49,8 +53,14 @@ final class ReservationReport implements ReportInterface
             ])
             ->orderByDesc("{$reservationsTable}.reserved_at");
 
+        // The status is a tag, so it is filtered through the ids taxon says
+        // carry that value rather than through a column that does not exist.
         if ($this->status !== null) {
-            $query->where("{$reservationsTable}.status", $this->status);
+            $query->whereIn("{$reservationsTable}.id", TagQuery::filterIdsByTagValue(
+                ModelResolver::resolve('reservation', Reservation::class),
+                ReservationStatusDefinition::class,
+                $this->status,
+            ));
         }
 
         if ($this->jobType !== null) {
@@ -72,6 +82,14 @@ final class ReservationReport implements ReportInterface
         // than leaving every exporter to cast defensively.
         /** @var Collection<int, array<string, mixed>> $rows */
         $rows = $query->get()->map(fn (object $row): array => (array) $row);
+
+        $rows = TagRowValues::attach(
+            $rows,
+            ModelResolver::resolve('reservation', Reservation::class),
+            ReservationStatusDefinition::class,
+            'reservation_id',
+            'status',
+        );
 
         // Calculate summary
         $totalReservations = $rows->count();
@@ -115,7 +133,7 @@ final class ReservationReport implements ReportInterface
     {
         return [
             new ColumnDefinition('reservation_id', 'Reservation ID', ColumnDefinition::TYPE_STRING),
-            new ColumnDefinition('status', 'Status', ColumnDefinition::TYPE_STRING),
+            new ColumnDefinition('status_label', 'Status', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('reserved_at', 'Reserved At', ColumnDefinition::TYPE_DATETIME),
             new ColumnDefinition('expires_at', 'Expires At', ColumnDefinition::TYPE_DATETIME),
             new ColumnDefinition('item_id', 'Item ID', ColumnDefinition::TYPE_STRING),

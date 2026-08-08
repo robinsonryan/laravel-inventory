@@ -7,10 +7,15 @@ namespace RobinsonRyan\Inventory\Reporting\Reports;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use RobinsonRyan\Inventory\Catalog\Models\Item;
+use RobinsonRyan\Inventory\Catalog\TagDefinitions\ItemCategoryDefinition;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
+use RobinsonRyan\Inventory\Reporting\Support\TagRowValues;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 use RobinsonRyan\Inventory\Support\TableResolver;
+use RobinsonRyan\Inventory\Support\TagQuery;
 
 final class StockValuationReport implements ReportInterface
 {
@@ -33,7 +38,6 @@ final class StockValuationReport implements ReportInterface
                 "{$stockTable}.item_id",
                 "{$itemsTable}.sku as item_sku",
                 "{$itemsTable}.name as item_name",
-                "{$itemsTable}.category",
                 "{$stockTable}.location_id",
                 "{$locationsTable}.code as location_code",
                 "{$locationsTable}.name as location_name",
@@ -52,14 +56,28 @@ final class StockValuationReport implements ReportInterface
             $query->where("{$stockTable}.item_id", $this->itemId);
         }
 
+        // The category is a tag, so it is filtered through the ids taxon says
+        // carry that value rather than through a column that does not exist.
         if ($this->category !== null) {
-            $query->where("{$itemsTable}.category", $this->category);
+            $query->whereIn("{$itemsTable}.id", TagQuery::filterIdsByTagValue(
+                ModelResolver::resolveAny('item', Item::class),
+                ItemCategoryDefinition::class,
+                $this->category,
+            ));
         }
 
         // Normalise the raw stdClass result rows to arrays once, here, rather
         // than leaving every exporter to cast defensively.
         /** @var Collection<int, array<string, mixed>> $rows */
         $rows = $query->get()->map(fn (object $row): array => (array) $row);
+
+        $rows = TagRowValues::attach(
+            $rows,
+            ModelResolver::resolveAny('item', Item::class),
+            ItemCategoryDefinition::class,
+            'item_id',
+            'category',
+        );
 
         // Calculate summary totals
         $totalQuantity = $rows->sum('quantity');
@@ -105,7 +123,7 @@ final class StockValuationReport implements ReportInterface
             new ColumnDefinition('item_id', 'Item ID', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('item_sku', 'SKU', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('item_name', 'Item Name', ColumnDefinition::TYPE_STRING),
-            new ColumnDefinition('category', 'Category', ColumnDefinition::TYPE_STRING),
+            new ColumnDefinition('category_label', 'Category', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('location_id', 'Location ID', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('location_code', 'Location Code', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('location_name', 'Location Name', ColumnDefinition::TYPE_STRING),

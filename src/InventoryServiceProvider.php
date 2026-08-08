@@ -5,18 +5,24 @@ declare(strict_types=1);
 namespace RobinsonRyan\Inventory;
 
 use Illuminate\Support\ServiceProvider;
+use RobinsonRyan\Inventory\Console\SyncTagValuesCommand;
+use RobinsonRyan\Inventory\Contracts\ReservationContract;
+use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 
 final class InventoryServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/inventory.php', 'inventory');
+
+        $this->app->bind(ReservationContract::class, ReservationService::class);
     }
 
     public function boot(): void
     {
         $this->publishConfig();
         $this->publishMigrations();
+        $this->registerCommands();
         $this->registerEventListeners();
     }
 
@@ -32,6 +38,17 @@ final class InventoryServiceProvider extends ServiceProvider
         $this->publishesMigrations([
             __DIR__.'/../database/migrations' => database_path('migrations'),
         ], 'inventory-migrations');
+    }
+
+    private function registerCommands(): void
+    {
+        if (! $this->app->runningInConsole()) {
+            return;
+        }
+
+        $this->commands([
+            SyncTagValuesCommand::class,
+        ]);
     }
 
     private function registerEventListeners(): void

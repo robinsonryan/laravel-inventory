@@ -8,41 +8,75 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use RobinsonRyan\Inventory\Contracts\ReservationContract;
+use RobinsonRyan\Inventory\Exceptions\CannotReserveException;
 use RobinsonRyan\Inventory\Stock\Data\RemoveStockData;
 use RobinsonRyan\Inventory\Stock\Data\ReservationData;
 use RobinsonRyan\Inventory\Stock\Models\Reservation;
 use RobinsonRyan\Inventory\Stock\Models\Stock;
 use RobinsonRyan\Inventory\Stock\Models\StockMovement;
 
-final readonly class ReservationService
+final readonly class ReservationService implements ReservationContract
 {
+    /**
+     * The statuses that mean a reservation has already given its hold back.
+     */
+    private const CLOSED_STATUSES = ['fulfilled', 'cancelled', 'expired'];
+
+    /**
+     * What to say when a closed reservation is asked to give up stock again.
+     */
+    private const CLOSED_MESSAGES = [
+        'fulfilled' => 'Reservation has already been fulfilled.',
+        'cancelled' => 'Cannot fulfill a cancelled reservation.',
+        'expired' => 'Cannot fulfill an expired reservation.',
+    ];
+
     public function __construct(
         private StockService $stockService,
     ) {}
 
     /**
      * Create a reservation for an item.
+     *
+     * Always binds the reservation to a stock record and raises that record's
+     * reserved quantity. Throws when nothing can back it — a reservation that
+     * holds no stock reduces no availability and can never be fulfilled.
+     *
+     * @throws CannotReserveException when the item has too little available stock
+     *                                in total, or when the stock exists but no
+     *                                single location holds enough of it
      */
     public function reserve(ReservationData $data): Reservation
     {
         return DB::transaction(function () use ($data): Reservation {
-            if (! $this->canReserve($data->itemId, $data->quantity, $data->locationId)) {
-                throw new InvalidArgumentException(
-                    'Insufficient available stock to create reservation.',
+            $available = $this->stockService->getAvailable($data->itemId, $data->locationId);
+
+            if ($available < $data->quantity) {
+                throw CannotReserveException::notEnoughStock(
+                    $data->itemId,
+                    $data->quantity,
+                    $available,
                 );
             }
 
             $expiryHours = $data->expiryHours ?? config('inventory.rules.reservation_expiry_hours', 72);
             $expiresAt = Carbon::now()->addHours($expiryHours);
 
-            // Find stock record to reserve from
+            // Find the stock record to reserve from. A reservation holds exactly one
+            // stock record (`reservations.stock_id`), so total availability is not
+            // enough on its own — one record has to cover the whole quantity.
             $stock = $this->findAvailableStock($data->itemId, $data->quantity, $data->locationId);
+
+            if (! $stock instanceof Stock) {
+                throw $this->stockIsTooFragmented($data, $available);
+            }
 
             /** @var Reservation */
             $reservation = $this->getReservationModel()::query()->create([
                 'item_id' => $data->itemId,
-                'stock_id' => $stock?->id,
-                'location_id' => $data->locationId ?? $stock?->location_id,
+                'stock_id' => $stock->id,
+                'location_id' => $data->locationId ?? $stock->location_id,
                 'job_type' => $data->jobType,
                 'job_id' => $data->jobId,
                 'line_id' => $data->lineId,
@@ -55,9 +89,7 @@ final readonly class ReservationService
             $reservation->status = 'reserved';
 
             // Update reserved quantity on stock
-            if ($stock instanceof Stock) {
-                $stock->increment('reserved_quantity', $data->quantity);
-            }
+            $stock->increment('reserved_quantity', $data->quantity);
 
             return $reservation;
         });
@@ -65,18 +97,18 @@ final readonly class ReservationService
 
     /**
      * Release a reservation (cancel it without consuming).
+     *
+     * Silent on a reservation that has already closed: releasing a second time
+     * would hand the same units back a second time.
      */
     public function release(Reservation $reservation): void
     {
         DB::transaction(function () use ($reservation): void {
-            if ($reservation->cancelled_at !== null || $reservation->fulfilled_at !== null) {
+            if (! $this->syncFromStorage($reservation) || $this->closedState($reservation) !== null) {
                 return;
             }
 
-            // Release reserved quantity on stock
-            if ($reservation->stock !== null) {
-                $reservation->stock->decrement('reserved_quantity', (float) $reservation->quantity);
-            }
+            $this->returnHold($reservation, (float) $reservation->quantity);
 
             $reservation->cancelled_at = Carbon::now();
             $reservation->status = 'cancelled';
@@ -86,39 +118,35 @@ final readonly class ReservationService
 
     /**
      * Fulfill a reservation (consume the stock).
+     *
+     * @throws InvalidArgumentException when the reservation has already closed
+     *                                  or has no location to consume from
      */
     public function fulfill(Reservation $reservation): StockMovement
     {
         return DB::transaction(function () use ($reservation): StockMovement {
-            if ($reservation->fulfilled_at !== null) {
-                throw new InvalidArgumentException('Reservation has already been fulfilled.');
-            }
+            $this->guardCanFulfill($reservation);
 
-            if ($reservation->cancelled_at !== null) {
-                throw new InvalidArgumentException('Cannot fulfill a cancelled reservation.');
-            }
+            $locationId = $this->fulfilmentLocation($reservation);
+            $quantity = (float) $reservation->quantity;
 
-            $locationId = $reservation->location_id ?? $reservation->stock?->location_id;
+            // Give the hold back before consuming it. Stock removal measures
+            // availability as quantity minus reserved_quantity, so a hold left
+            // standing counts against the very consumption it exists to
+            // guarantee — any reservation larger than the unreserved remainder
+            // could never be fulfilled. Both steps share this transaction, so a
+            // removal that fails puts the hold back exactly as it was.
+            $this->returnHold($reservation, $quantity);
 
-            if ($locationId === null) {
-                throw new InvalidArgumentException('Cannot fulfill reservation without a location.');
-            }
-
-            // Create consumption movement
             $movement = $this->stockService->removeStock(new RemoveStockData(
                 itemId: $reservation->item_id,
                 locationId: $locationId,
-                quantity: (float) $reservation->quantity,
+                quantity: $quantity,
                 type: 'consumption',
                 referenceType: $reservation->job_type,
                 referenceId: $reservation->job_id,
                 notes: "Fulfilled reservation {$reservation->id}",
             ));
-
-            // Release reserved quantity (it's now consumed)
-            if ($reservation->stock !== null) {
-                $reservation->stock->decrement('reserved_quantity', (float) $reservation->quantity);
-            }
 
             $reservation->fulfilled_at = Carbon::now();
             $reservation->status = 'fulfilled';
@@ -130,29 +158,26 @@ final readonly class ReservationService
 
     /**
      * Partially fulfill a reservation.
+     *
+     * @throws InvalidArgumentException when the reservation has already closed,
+     *                                  has no location to consume from, or the
+     *                                  quantity exceeds what is still held
      */
     public function partialFulfill(Reservation $reservation, float $quantity): StockMovement
     {
         return DB::transaction(function () use ($reservation, $quantity): StockMovement {
-            if ($reservation->fulfilled_at !== null) {
-                throw new InvalidArgumentException('Reservation has already been fulfilled.');
-            }
-
-            if ($reservation->cancelled_at !== null) {
-                throw new InvalidArgumentException('Cannot fulfill a cancelled reservation.');
-            }
+            $this->guardCanFulfill($reservation);
 
             if ($quantity > (float) $reservation->quantity) {
                 throw new InvalidArgumentException('Partial quantity exceeds reservation quantity.');
             }
 
-            $locationId = $reservation->location_id ?? $reservation->stock?->location_id;
+            $locationId = $this->fulfilmentLocation($reservation);
 
-            if ($locationId === null) {
-                throw new InvalidArgumentException('Cannot fulfill reservation without a location.');
-            }
+            // Same ordering as a full fulfilment: the consumed portion of the
+            // hold is returned first so it does not block its own removal.
+            $this->returnHold($reservation, $quantity);
 
-            // Create consumption movement
             $movement = $this->stockService->removeStock(new RemoveStockData(
                 itemId: $reservation->item_id,
                 locationId: $locationId,
@@ -163,12 +188,6 @@ final readonly class ReservationService
                 notes: "Partially fulfilled reservation {$reservation->id}",
             ));
 
-            // Release reserved quantity for the consumed portion
-            if ($reservation->stock !== null) {
-                $reservation->stock->decrement('reserved_quantity', $quantity);
-            }
-
-            // Update reservation
             $remainingQuantity = (float) $reservation->quantity - $quantity;
             $reservation->quantity = $remainingQuantity;
 
@@ -193,24 +212,32 @@ final readonly class ReservationService
     public function expireOld(): int
     {
         return DB::transaction(function (): int {
-            $expiredReservations = $this->getReservationModel()::query()
+            $candidates = $this->getReservationModel()::query()
                 ->whereNull('fulfilled_at')
                 ->whereNull('cancelled_at')
                 ->whereNotNull('expires_at')
                 ->where('expires_at', '<', Carbon::now())
                 ->get();
 
-            foreach ($expiredReservations as $reservation) {
-                // Release reserved quantity on stock
-                if ($reservation->stock !== null) {
-                    $reservation->stock->decrement('reserved_quantity', (float) $reservation->quantity);
+            $expired = 0;
+
+            foreach ($candidates as $reservation) {
+                // A reservation already marked expired still matches the query
+                // above — expiry writes no timestamp. Skipping it here is what
+                // stops a second sweep returning the same hold twice.
+                if ($this->closedState($reservation) !== null) {
+                    continue;
                 }
+
+                $this->returnHold($reservation, (float) $reservation->quantity);
 
                 $reservation->status = 'expired';
                 $reservation->save();
+
+                $expired++;
             }
 
-            return $expiredReservations->count();
+            return $expired;
         });
     }
 
@@ -230,6 +257,10 @@ final readonly class ReservationService
 
     /**
      * Check if an item has sufficient available stock to reserve.
+     *
+     * Measures the total across every matching stock record. A reservation binds
+     * to one record, so a true answer here does not guarantee `reserve()` will
+     * succeed when the quantity is spread thinly across locations or lots.
      */
     public function canReserve(string $itemId, float $quantity, ?string $locationId = null): bool
     {
@@ -239,13 +270,182 @@ final readonly class ReservationService
     }
 
     /**
-     * Find a stock record with sufficient available quantity.
+     * How a reservation was closed, or null while it is still holding stock.
+     *
+     * The one question every closing path asks, so that they cannot answer it
+     * differently. Status carries as much weight as the two timestamps do:
+     * expiry returns the hold and marks the reservation `expired` without
+     * writing either timestamp, so a guard reading only `fulfilled_at` and
+     * `cancelled_at` let an expired reservation be released or consumed a
+     * second time — handing the same units back twice, silently and with
+     * confident-looking numbers.
+     */
+    private function closedState(Reservation $reservation): ?string
+    {
+        if ($reservation->fulfilled_at !== null) {
+            return 'fulfilled';
+        }
+
+        if ($reservation->cancelled_at !== null) {
+            return 'cancelled';
+        }
+
+        $status = $reservation->status;
+
+        return in_array($status, self::CLOSED_STATUSES, true) ? $status : null;
+    }
+
+    /**
+     * Refuse to consume a reservation that is no longer holding stock.
+     *
+     * @throws InvalidArgumentException
+     */
+    private function guardCanFulfill(Reservation $reservation): void
+    {
+        if (! $this->syncFromStorage($reservation)) {
+            throw new InvalidArgumentException('Reservation no longer exists.');
+        }
+
+        $closedState = $this->closedState($reservation);
+
+        if ($closedState !== null) {
+            throw new InvalidArgumentException(self::CLOSED_MESSAGES[$closedState]);
+        }
+    }
+
+    /**
+     * Re-read a reservation's stored state, reporting whether the row still exists.
+     *
+     * Callers hold instances across time: the expiry sweep closes reservations
+     * on copies of its own, and a host app can easily be carrying a second
+     * instance of the same row. Deciding from the instance handed in would
+     * trust whatever it happened to be loaded with, so every closing path
+     * re-reads first.
+     */
+    private function syncFromStorage(Reservation $reservation): bool
+    {
+        if (! $reservation->exists) {
+            return false;
+        }
+
+        $stored = $this->getReservationModel()::query()
+            ->whereKey($reservation->getKey())
+            ->first();
+
+        if (! $stored instanceof Reservation) {
+            return false;
+        }
+
+        $reservation->setRawAttributes($stored->getAttributes(), true);
+        $reservation->setRelations([]);
+
+        return true;
+    }
+
+    /**
+     * Hand a held quantity back to the stock record carrying it.
+     */
+    private function returnHold(Reservation $reservation, float $quantity): void
+    {
+        $reservation->stock?->decrement('reserved_quantity', $quantity);
+    }
+
+    /**
+     * Where a reservation's stock is consumed from.
+     *
+     * @throws InvalidArgumentException when neither the reservation nor its
+     *                                  stock record names a location
+     */
+    private function fulfilmentLocation(Reservation $reservation): string
+    {
+        $locationId = $reservation->location_id ?? $reservation->stock?->location_id;
+
+        if ($locationId === null) {
+            throw new InvalidArgumentException('Cannot fulfill reservation without a location.');
+        }
+
+        return $locationId;
+    }
+
+    /**
+     * The refusal to raise when the stock exists but sits in more than one place.
+     *
+     * Reports the fullest single location by name, because that is what tells a
+     * host app this is a consolidation problem and not a reordering one.
+     */
+    private function stockIsTooFragmented(ReservationData $data, float $available): CannotReserveException
+    {
+        $largest = $this->largestAvailableStock($data->itemId, $data->locationId);
+
+        // No stock record at all means there is nothing to consolidate, so the
+        // honest refusal is a shortage after all.
+        if (! $largest instanceof Stock) {
+            return CannotReserveException::notEnoughStock($data->itemId, $data->quantity, $available);
+        }
+
+        return CannotReserveException::notAvailableInOneLocation(
+            $data->itemId,
+            $data->quantity,
+            $available,
+            (float) $largest->available_quantity,
+            $largest->location_id,
+            $this->describeLocation($largest),
+        );
+    }
+
+    /**
+     * A human-readable name for the location a stock record sits in.
+     *
+     * Lot- and serial-tracked stock splits one location across several records,
+     * and a reservation is held against a record rather than a location, so the
+     * lot is named too where there is one. Saying "50 at Main Warehouse" when
+     * the reservable amount is 50 of one lot out of 80 on the shelf would be
+     * the same kind of confident wrong number this refusal exists to avoid.
+     */
+    private function describeLocation(Stock $stock): string
+    {
+        $name = $stock->location->name;
+
+        return $stock->lot_number === null ? $name : "{$name} (lot {$stock->lot_number})";
+    }
+
+    /**
+     * Find a single stock record with enough available quantity to cover a reservation.
+     *
+     * The comparison casts the bound quantity explicitly. PDO sends a PHP float as a
+     * string, and `quantity - reserved_quantity` is an expression with no column
+     * affinity, so on SQLite the comparison would otherwise be number-against-text —
+     * which is always false, silently matching nothing. Do not drop the CAST.
+     *
+     * PostgreSQL resolves the untyped binding to numeric on its own, so this suite
+     * — which runs on PostgreSQL — would stay green without the cast. The cast is
+     * here for the host applications that run this package on SQLite, and nothing
+     * automated guards it. Treat it as load-bearing anyway.
      */
     private function findAvailableStock(string $itemId, float $quantity, ?string $locationId = null): ?Stock
     {
         $query = $this->getStockModel()::query()
             ->where('item_id', $itemId)
-            ->whereRaw('quantity - reserved_quantity >= ?', [$quantity]);
+            ->whereRaw('quantity - reserved_quantity >= CAST(? AS DECIMAL(20,4))', [$quantity])
+            ->orderBy('id');
+
+        if ($locationId !== null) {
+            $query->where('location_id', $locationId);
+        }
+
+        /** @var Stock|null */
+        return $query->first();
+    }
+
+    /**
+     * The stock record holding the most unreserved quantity, for reporting only.
+     */
+    private function largestAvailableStock(string $itemId, ?string $locationId = null): ?Stock
+    {
+        $query = $this->getStockModel()::query()
+            ->where('item_id', $itemId)
+            ->orderByRaw('quantity - reserved_quantity DESC')
+            ->with('location');
 
         if ($locationId !== null) {
             $query->where('location_id', $locationId);

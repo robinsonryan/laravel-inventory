@@ -16,34 +16,6 @@ beforeEach(function (): void {
     $this->reportService = App::make(ReportService::class);
     $this->location = Location::factory()->warehouse()->create(['code' => 'WH1']);
     $this->item = Item::factory()->create(['sku' => 'TEST-001', 'name' => 'Test Item', 'cost' => 10.00]);
-
-    // Create cycle count tables if they don't exist for testing
-    $cycleCountsTable = config('inventory.tables.cycle_counts', 'cycle_counts');
-    $cycleCountLinesTable = config('inventory.tables.cycle_count_lines', 'cycle_count_lines');
-
-    if (! Illuminate\Support\Facades\Schema::hasTable($cycleCountsTable)) {
-        Illuminate\Support\Facades\Schema::create($cycleCountsTable, function ($table): void {
-            $table->uuid('id')->primary();
-            $table->uuid('tenant_id')->nullable();
-            $table->uuid('location_id');
-            $table->string('count_number');
-            $table->string('status')->default('pending');
-            $table->timestamp('approved_at')->nullable();
-            $table->timestamps();
-        });
-    }
-
-    if (! Illuminate\Support\Facades\Schema::hasTable($cycleCountLinesTable)) {
-        Illuminate\Support\Facades\Schema::create($cycleCountLinesTable, function ($table): void {
-            $table->uuid('id')->primary();
-            $table->uuid('cycle_count_id');
-            $table->uuid('item_id');
-            $table->decimal('expected_quantity', 15, 4);
-            $table->decimal('counted_quantity', 15, 4);
-            $table->string('reason')->nullable();
-            $table->timestamps();
-        });
-    }
 });
 
 describe('VarianceReport', function (): void {
@@ -54,7 +26,6 @@ describe('VarianceReport', function (): void {
             'id' => $cycleCountId,
             'location_id' => $this->location->id,
             'count_number' => 'CC-001',
-            'status' => 'approved',
             'approved_at' => Carbon::now(),
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now(),
@@ -64,9 +35,10 @@ describe('VarianceReport', function (): void {
             'id' => (string) Uuid::v7(),
             'cycle_count_id' => $cycleCountId,
             'item_id' => $this->item->id,
+            'location_id' => $this->location->id,
             'expected_quantity' => 100,
             'counted_quantity' => 95,
-            'reason' => 'Physical shortage',
+            'notes' => 'Physical shortage',
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now(),
         ]);
@@ -80,7 +52,9 @@ describe('VarianceReport', function (): void {
             ->and($data->rows->first()['item_sku'])->toBe('TEST-001')
             ->and((float) $data->rows->first()['expected_quantity'])->toBe(100.0)
             ->and((float) $data->rows->first()['counted_quantity'])->toBe(95.0)
-            ->and((float) $data->rows->first()['variance'])->toBe(-5.0);
+            ->and((float) $data->rows->first()['variance'])->toBe(-5.0)
+            // The reason a line differs is the note the counter left on it.
+            ->and($data->rows->first()['reason'])->toBe('Physical shortage');
     });
 
     it('filters by date range', function (): void {
@@ -90,7 +64,6 @@ describe('VarianceReport', function (): void {
             'id' => $oldCycleCountId,
             'location_id' => $this->location->id,
             'count_number' => 'CC-001',
-            'status' => 'approved',
             'approved_at' => Carbon::parse('2026-01-01'),
             'created_at' => Carbon::parse('2026-01-01'),
             'updated_at' => Carbon::parse('2026-01-01'),
@@ -100,6 +73,7 @@ describe('VarianceReport', function (): void {
             'id' => (string) Uuid::v7(),
             'cycle_count_id' => $oldCycleCountId,
             'item_id' => $this->item->id,
+            'location_id' => $this->location->id,
             'expected_quantity' => 100,
             'counted_quantity' => 90,
             'created_at' => Carbon::parse('2026-01-01'),
@@ -112,7 +86,6 @@ describe('VarianceReport', function (): void {
             'id' => $recentCycleCountId,
             'location_id' => $this->location->id,
             'count_number' => 'CC-002',
-            'status' => 'approved',
             'approved_at' => Carbon::parse('2026-01-15'),
             'created_at' => Carbon::parse('2026-01-15'),
             'updated_at' => Carbon::parse('2026-01-15'),
@@ -122,6 +95,7 @@ describe('VarianceReport', function (): void {
             'id' => (string) Uuid::v7(),
             'cycle_count_id' => $recentCycleCountId,
             'item_id' => $this->item->id,
+            'location_id' => $this->location->id,
             'expected_quantity' => 90,
             'counted_quantity' => 85,
             'created_at' => Carbon::parse('2026-01-15'),
@@ -147,7 +121,6 @@ describe('VarianceReport', function (): void {
             'id' => $cycleCountId1,
             'location_id' => $this->location->id,
             'count_number' => 'CC-001',
-            'status' => 'approved',
             'approved_at' => Carbon::now(),
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now(),
@@ -157,6 +130,7 @@ describe('VarianceReport', function (): void {
             'id' => (string) Uuid::v7(),
             'cycle_count_id' => $cycleCountId1,
             'item_id' => $this->item->id,
+            'location_id' => $this->location->id,
             'expected_quantity' => 100,
             'counted_quantity' => 95,
             'created_at' => Carbon::now(),
@@ -169,7 +143,6 @@ describe('VarianceReport', function (): void {
             'id' => $cycleCountId2,
             'location_id' => $location2->id,
             'count_number' => 'CC-002',
-            'status' => 'approved',
             'approved_at' => Carbon::now(),
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now(),
@@ -179,6 +152,7 @@ describe('VarianceReport', function (): void {
             'id' => (string) Uuid::v7(),
             'cycle_count_id' => $cycleCountId2,
             'item_id' => $this->item->id,
+            'location_id' => $location2->id,
             'expected_quantity' => 50,
             'counted_quantity' => 45,
             'created_at' => Carbon::now(),
@@ -198,7 +172,6 @@ describe('VarianceReport', function (): void {
             'id' => $cycleCountId,
             'location_id' => $this->location->id,
             'count_number' => 'CC-001',
-            'status' => 'approved',
             'approved_at' => Carbon::now(),
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now(),
@@ -208,6 +181,7 @@ describe('VarianceReport', function (): void {
             'id' => (string) Uuid::v7(),
             'cycle_count_id' => $cycleCountId,
             'item_id' => $this->item->id,
+            'location_id' => $this->location->id,
             'expected_quantity' => 100,
             'counted_quantity' => 95, // -5 variance * $10 cost = -$50 impact
             'created_at' => Carbon::now(),
@@ -230,7 +204,6 @@ describe('VarianceReport', function (): void {
             'id' => $pendingId,
             'location_id' => $this->location->id,
             'count_number' => 'CC-PENDING',
-            'status' => 'pending',
             'approved_at' => null,
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now(),
@@ -240,6 +213,7 @@ describe('VarianceReport', function (): void {
             'id' => (string) Uuid::v7(),
             'cycle_count_id' => $pendingId,
             'item_id' => $this->item->id,
+            'location_id' => $this->location->id,
             'expected_quantity' => 100,
             'counted_quantity' => 90,
             'created_at' => Carbon::now(),

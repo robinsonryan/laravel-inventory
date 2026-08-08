@@ -8,14 +8,28 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Trait for models that belong to a tenant.
+ * Records which tenant owns a row. Does NOT isolate tenants.
+ *
+ * This trait stamps the tenant column on create and stops there. It adds no
+ * global scope, so reads return every tenant's rows, and the reporting module
+ * queries tables directly and never sees this trait at all.
+ *
+ * That is a deliberate position, not an oversight: enforcing isolation through
+ * a tenant column is a promise every future query has to keep, and this package
+ * has no host application that needs it yet. The schema is already shaped for
+ * it — ten tables carry the column and every write fills it — so adding read
+ * filtering later is additive, with no backfill and no data migration. See
+ * QUEUE.md.
+ *
+ * A host that needs isolation today has `forTenant()` below, its own global
+ * scopes, or a database per tenant.
  *
  * @mixin Model
  */
 trait BelongsToTenant
 {
     /**
-     * Boot the trait and add a global scope for tenant filtering.
+     * Stamp the owning tenant on create, when the caller has not set one.
      */
     public static function bootBelongsToTenant(): void
     {

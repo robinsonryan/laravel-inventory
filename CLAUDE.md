@@ -6,8 +6,13 @@ quantities, an immutable movement ledger, reservations), purchasing (purchase or
 receipts), reconciliation (cycle counts, variance adjustments), forecasting (demand
 analysis, reorder recommendations) and reporting (six reports plus CSV/JSON/accounting
 exporters). A Jobs integration layer reserves and consumes stock in response to the
-host app's work-order events. Multi-tenant by default, headless — no routes, no
-controllers, no views, one console command.
+host app's work-order events. Headless — no routes, no controllers, no views,
+two console commands.
+
+**Tenant-aware, not tenant-isolating.** Ten tables record which tenant owns each
+row and every write stamps it, but nothing filters reads: there is no global
+scope, and the reports query tables directly. That is a deliberate position
+(Ryan, 2026-08-08), not a gap — see "Tenancy" below before you build on it.
 
 Composer name: `robinsonryan/laravel-inventory` — a **library**, not an application.
 
@@ -49,99 +54,128 @@ Composer name: `robinsonryan/laravel-inventory` — a **library**, not an applic
 > reporting, jobs). They are the design intent for the modules under `src/`; read
 > the relevant one before changing a module's shape.
 
-## 🔴 The test suite is red and parked — read this before you touch any PHP
+## The suite is green — and how it got there shapes the code
 
-**134 of 480 tests fail** (346 pass, 857 assertions, ~32 s). Verified 2026-08-08 with
-`ddev exec vendor/bin/pest`. `lint:check`, `analyze` and `refactor:check` are all
-green — no baselines, no ignore rules — so `composer quality` fails on `test` alone.
+**527 tests pass** (1402 assertions, ~57 s). `composer quality` exits 0 — `lint:check`, `analyze`,
+`refactor:check` and `test`, no baselines, no ignore rules, no suppressions. Verified 2026-08-08 on
+branch `fix/test-suite-repair`.
 
-**What that means for you, concretely: you cannot commit a PHP change here.** The
-pre-commit hook runs the *whole* gate, tests included, whenever the staged set
-touches `*.php`, `composer.json`, `phpstan.neon`, `pint.json`, `rector.php` or
-`phpunit.xml`. That commit will be rejected, every time, and that is intentional —
-the red suite is a deliberate parking marker, not gate drift. A docs-only commit
-skips the gate and is the only kind of commit that lands here today.
+It was 134 failures on 480 tests, and the package had never once had its suite executed — no
+`vendor/`, no `composer.lock`, so the first-ever run fatalled on load. Repairing it turned up six
+defects that were never test problems, listed below. `QUEUE.md`'s archive has the full account.
 
-Never route around it: `--no-verify` is forbidden, and `PACKAGE_SKIP_GATE=1` is a
-human-only emergency valve — **agents must never set it.**
+**Four decisions Ryan took during the repair. Do not quietly re-open them.**
 
-Every failure predates the gating session: the package had no `vendor/` and no
-`composer.lock`, so the suite had **never been executed**. Its first-ever run
-produced 480 failures and zero assertions — it fatalled on load. So the repair is a
-genuine engineering job with product decisions at its centre, and it has to come
-first. `QUEUE.md` holds the full item-by-item breakdown; the clusters below are the
-map.
+1. **"Usage" means stock that leaves and does not come back** — sales, job consumption, scrap; not
+   transfers between your own locations. The low-stock report and the demand analyser previously
+   disagreed (one read the movement's *label*, one read its *shape*). They now share
+   `Support\MovementScopes::depleting()`. **Never inline that filter again** — one shared definition
+   is the whole point.
+2. **Tag values load during installation**, via a migration, with `inventory:sync-tag-values` as the
+   re-runnable reload path. Not a seeder, not on boot: this is structural data the package cannot
+   run without, so it must not be skippable.
+3. **Tag-backed fields appear in reports as a pair** — `<field>_label` (human, "In Progress") and
+   `<field>_value` (stable, `in-progress`). The **label** is the declared column, so the spreadsheet
+   export shows it alone; the value rides in the row data and reaches the JSON feed. This is the
+   convention for every tag-backed field added from now on.
+4. **Listeners depend on `Contracts\ReservationContract`, not the concrete service.** Classes stay
+   `final`; `pint.json` is not to be touched. Tests that need a `Reservation` *model* use real
+   records — you do not write a contract for a database row.
 
-### Cluster 1 — nothing ever seeds the tag values (64 failures, the highest-leverage fix)
+### How tags actually work here — read before touching a report
 
-All six `TagDefinition` classes declare a `DEFAULT_VALUES` constant
-(`ItemCategoryDefinition`, `LocationTypeDefinition`, `MovementTypeDefinition`,
-`ReservationStatusDefinition`, `PurchaseOrderStatusDefinition`,
-`CycleCountStatusDefinition`) and **nothing in `src/` or `database/` reads it.** The
-only references are test assertions about the constant itself.
+`category` (items), `type` (locations, stock movements) and `status` (reservations, purchase orders,
+cycle counts) are **taxon tags, not columns.** No migration creates them and none ever will.
 
-Taxon decides validity from the database, not the constant:
-`TagDefinition::values()` plucks the tag's *child rows*, and `isValidValue()` returns
-`true` only while that list is empty. So the first status written to a fresh database
-auto-creates itself and passes; the second, *different* status is then measured
-against a one-element list and rejected —
-`'submitted' is not a valid value for PurchaseOrderStatusDefinition`.
+Taxon can *filter* by tag but cannot project a tag value into a `SELECT` or `GROUP BY`. So the
+reports do both halves separately, and `Support\TagQuery` is the only place that knows how:
 
-Fix shape: an install/seed path that walks each definition's `DEFAULT_VALUES` through
-taxon's `TagDefinition::firstOrCreateValue()`, called from `tests/TestCase.php`.
-Ryan's decisions, not yours: artisan command vs. seeder vs. provider boot, and
-whether seeding is per-tenant.
+- **Filtering** — `TagQuery::filterIdsByTagValue()` builds an id subquery from taxon's own scope.
+- **Projecting** — `TagQuery::labelsAndValuesFor()` maps ids to label+value in one query, applied
+  *after* the rows are fetched by `Reporting\Support\TagRowValues`.
 
-One trap while you're in here: `isValidValue()` slugifies with `Str::slug()`, so
-`in_progress` round-trips as `in-progress`. That is why one cycle-count test dies on
-`Cannot complete cycle count in status "in-progress". Count must be "in_progress".`
+Writing `select('items.category')` will fail with "no such column", every time. That is not a bug to
+fix; it is the design.
 
-### Cluster 2 — tags are queried as columns (30 failures) — a design question, not a bug
+**The slug trap.** Taxon slugifies on every read and write path *except* `firstOrCreateValue()`.
+`in_progress` stores as `in-progress`. Comparing code against the underscored spelling is a bug that
+has now been fixed three separate times (`CompleteCounting`, `ReconciliationService`, `RecordCount`)
+— `in-progress` is the only value in all six vocabularies whose slug differs from its source
+spelling, and it is now declared hyphenated. Do not reintroduce the other form.
 
-This is the package's central unresolved design question and **must not be
-patched over.** `category` (items), `type` (stock_movements, locations) and `status`
-(reservations, purchase_orders, cycle_counts) are taxon *tag attributes*. They are
-not columns and were never created by a migration. The reports under
-`src/Reporting/Reports/` nevertheless `select` and `where` them directly:
+## Tenancy — a decision, not a gap. Do not "fix" it.
 
-- `items.category` — `StockValuationReport`, `LowStockReport` (15 failures)
-- `stock_movements.type` — `MovementHistoryReport`, `LowStockReport`'s usage subquery (5)
-- `reservations.status` — `ReservationReport` (5)
-- `cycle_counts.status` — `VarianceReport` (5)
+**The package records tenant ownership and does not enforce tenant isolation.**
+Ten tables carry `tenant_id`, `BelongsToTenant` stamps it on create, and nothing
+filters reads. Ryan chose this on 2026-08-08 after weighing the alternative.
 
-Two coherent resolutions, and picking between them is Ryan's call: denormalise these
-onto the tables, or rewrite the six reports to join `tags`/`taggables`. Both are real
-work with consequences for the host app's query surface.
+The reasoning, so nobody re-opens it from first principles:
 
-### Cluster 3 — `final_class` vs. Mockery (16 failures) — a cross-package convention decision
+- Isolation via a tenant column is not a feature you add once. It is a promise
+  **every query written from then on** has to keep, enforced by discipline rather
+  than by the database. There is no host application needing it today.
+- Doing it later costs about the same as doing it now. The expensive, irreversible
+  half of retrofitting tenancy — adding the column everywhere, backfilling, fixing
+  every insert — **is already done**. What is missing is read filtering, which is
+  purely additive: no migration, no backfill, no orphan rows.
+- The cost of waiting is linear, not a cliff: every new report is one more place
+  needing a predicate. Six today.
 
-`pint.json` enforces `final_class`. `tests/Unit/Jobs/ListenersTest.php` mocks
-concrete classes, and Mockery cannot double a `final` one: *"marked final and its
-methods cannot be replaced"* — 10 failures on the `Reservation` model, 6 on
-`ReservationService`.
+What this means when you work here:
 
-Note carefully: **the style rule did not cause these failures.** Both classes were
-already `final` before gating (`ReservationService` is `final readonly`). The rule
-and the testing style are simply in tension. The resolution — mock an interface, not
-a class — is a convention decision spanning all seven first-party packages, not this
-package's to make unilaterally. Do not "fix" it here by dropping `final_class` from
-`pint.json`.
+- **Do not add a global scope on a whim.** It would silently change every query in
+  the package and every host app depending on current behaviour.
+- **Do not remove the `tenant_id` columns.** That is the one irreversible move
+  available, and they cost nothing where they are.
+- A host needing isolation has `BelongsToTenant::scopeForTenant()`, its own global
+  scopes, or a database per tenant. Say so rather than building it in.
+- `config('inventory.tenant.enabled')` and `.scoped` **were deleted.** Nothing read
+  them, and the `scoped` map was wrong besides — it listed `items` as global while
+  the items table carries a tenant column. Only `tenant.column` survives.
+- **A tenant resolver is required.** Ten tables declare `tenant_id NOT NULL`, so a
+  single-tenant host binds a resolver returning a constant. There is no "off".
 
-### Cluster 4 — schema and residue (24 failures)
-
-- `receipt_lines.received_quantity` is read and written by code and tests, and the
-  migration never created it (5).
-- `NOT NULL constraint failed: taggables.taggable_id` — `setTagAs()` writes a pivot
-  row, so the owning model has to be saved first (2).
-- 3 × `Cannot fulfill reservation without a location`, 1 status-slug mismatch,
-  1 `TypeError`, and 12 plain assertion failures (e.g. `100.0 is identical to 75.0`,
-  an IIF exporter expecting output *not* to contain `ENDTRNS`). Work these last —
-  several are probably knock-on from clusters 1 and 2.
+If real scoping is ever wanted, `QUEUE.md` has the shape: the Eloquent half is a
+global scope in one file; the work is the six reports, which bypass Eloquent
+entirely, plus a second tenant in the fixtures — today's suite runs one fixed
+tenant and therefore cannot detect a leak at all.
 
 ## Defects already found and fixed — where they still shape the code
 
 These are done. They are recorded because the shapes they left behind look arbitrary
 until you know why.
+
+- **A bound float compared against a computed expression silently matched nothing on SQLite.**
+  `whereRaw('quantity - reserved_quantity >= ?')` bound the quantity as a string, and SQLite applies
+  no type affinity to an *expression*, sorting every number below every string — so the availability
+  lookup was unconditionally false, `reserve()` produced reservations attached to no stock row, and
+  fulfilment later died for want of a location. PostgreSQL and MySQL coerce it and were never
+  affected, which is why nothing looked wrong by inspection. Fixed with `CAST(? AS DECIMAL(20,4))`.
+  **Keep that cast** — and note that nothing automated guards it any more. The suite moved to
+  PostgreSQL, which resolves the untyped binding by itself, so the fractional-reservation test now
+  passes with the cast removed (verified). The cast protects host apps running on SQLite. Audit any
+  new raw fragment that compares a bound number to an expression.
+- **A reservation's own hold blocked its own fulfilment.** `fulfill()` consumed stock before
+  returning the hold, and the removal's availability check subtracts `reserved_quantity` — so any
+  reservation larger than the *unreserved* remainder could never be fulfilled. The hold is now
+  returned first, inside the same transaction. Ordering is load-bearing; do not reorder it.
+- **Closed reservations could hand stock back twice.** Expiry set the status but not the timestamp
+  the guards read, so releasing an expired reservation drove `reserved_quantity` negative and
+  inflated available stock — confidently wrong numbers rather than an error. All four closing paths
+  now share one `closedState()` predicate and re-read the stored row. That duplication is exactly
+  where the gap grew: if you add a fifth path, use the predicate.
+- **Recording a second cycle count was impossible** — the slug trap above, in `RecordCount`. No test
+  had ever recorded more than one count, which is why it survived.
+- **The forecasting fixtures were flinging data ~450 days into the past.**
+  `Carbon::setTestNow(Carbon::now()->subDays(...))` inside a loop compounds, because `now()` returns
+  the already-mocked time. Hoist the base time out of the loop.
+- **Exported accounting files carried literal `\t` instead of tabs** — the format declarations were
+  single-quoted PHP strings, so every export would have been rejected on import.
+- **`receipt_lines` briefly grew `received_quantity` and `unit_cost`, and they were removed again.**
+  A receipt line is the receiving desk's record: what turned up, how much, where it went. Its
+  `quantity` *is* the received quantity, and price belongs to the order line it references —
+  receiving staff have no way to know it. `PurchaseOrderReport` joins for the cost. Do not
+  reintroduce them; receiving *inspection* is a real feature and is queued as one.
 
 - **Three factories lived in a namespace PSR-4 could never autoload.**
   `database/factories/Stock/{Stock,Location,Reservation}Factory.php` declared
@@ -150,19 +184,37 @@ until you know why.
   three resolved to nothing — a hard fatal at 94 call sites across the suite,
   invisible for as long as the suite had never run. All ten factories now sit under
   `RobinsonRyan\Inventory\Database\Factories\<Module>`; keep new ones there.
-- **Every migration was unrunnable outside PostgreSQL 18.** All 20 create-table
-  migrations defaulted their primary key to `DB::raw('uuidv7()')`, a PG18 built-in —
-  so they failed on SQLite, on MySQL, and on this package's own PostgreSQL 17
-  container. Migrations now call `SchemaSupport::uuidPrimary($table)`, which probes
-  `pg_proc` once and applies the default only where the connection actually provides
-  the function. The `HasUuid7` trait generates keys in PHP regardless, so the
-  database default is only a safety net for non-Eloquent inserts. **Never write
-  `uuidv7()` into a migration directly** — no migration references it today.
+- **The migrations were right; the container was wrong.** All 20 create-table
+  migrations defaulted their primary key to `DB::raw('uuidv7()')`, a PostgreSQL 18
+  built-in, and this package's DDEV was pinned to **17** while every other Postgres
+  project here — taxon, hey-you, permixion, four-corners, yikes-hub, ryanbot — runs
+  18. An earlier session read the resulting failure as a portability bug and made
+  the default conditional. That was treating the symptom: `uuidv7()` was the
+  intended design, and it was being run on the one container that could not provide
+  it. DDEV is now on 18 and the default is applied for real — verified in
+  `information_schema`, and that branch of the code had **never executed** before.
+  `SchemaSupport::uuidPrimary($table)` keeps the `pg_proc` probe, which is still
+  correct for a library: a host on Postgres 16 or MySQL gets PHP-side keys from the
+  `HasUuid7` trait instead. **Never write `uuidv7()` into a migration directly** —
+  go through the helper, which also emits the key *before* any foreign key (see
+  below).
+  **If a migration fails on `uuidv7()`, check the Postgres version before assuming
+  the code is wrong.**
+- **The `locations` table could not be created on PostgreSQL at all.**
+  `SchemaSupport::uuidPrimary()` declared the key with the fluent `->primary()`
+  column modifier. Laravel turns fluent index modifiers into commands only when the
+  blueprint is compiled, so the primary key was emitted *after* every foreign key
+  the migration declared — and `locations` declares a self-referencing
+  `parent_id` FK inside the same `Schema::create()`. PostgreSQL rejected it: "there
+  is no unique constraint matching given keys for referenced table". SQLite folds
+  the whole thing into one `CREATE TABLE` and never noticed. `uuidPrimary()` now
+  calls `$table->primary($column)` explicitly, which puts the key first. **Do not
+  go back to the fluent modifier.**
 - **`DemandAnalyzer::getConsumptionByPeriod()` built MySQL-only `DATE_FORMAT()` SQL**
   in a PostgreSQL/SQLite package. Replaced by `DemandAnalyzer::periodExpression()`,
-  a per-driver `match` (`to_char` / `strftime` / `DATE_FORMAT`). **Only the sqlite
-  branch is exercised** — by a single caller,
-  `tests/Unit/Forecasting/DemandAnalyzerTest.php:45`. The pgsql and mysql branches
+  a per-driver `match` (`to_char` / `strftime` / `DATE_FORMAT`). Since the suite
+  moved to PostgreSQL, **only the pgsql branch is exercised** — by a single caller,
+  `tests/Unit/Forecasting/DemandAnalyzerTest.php:45`. The sqlite and mysql branches
   are unverified, and the weekly/monthly variants are untested on every driver.
   Treat that method as unproven.
 
@@ -174,13 +226,23 @@ argument).
 ## Deferred work
 
 `QUEUE.md` is the register — don't duplicate it here, and add to it rather than
-fixing out-of-scope things mid-task. Currently queued beyond the test suite:
-the advertised-but-unread `inventory.tenant.enabled` / `.scoped` config keys, the
-`inventory:generate-recommendations --tenant` option that is accepted and ignored,
-the never-written `AccountingExporter` report-shape branching, the untested
-`getConsumptionByPeriod()` drivers, widening the constraint matrix to Pest 5 /
-PHPUnit 13 / PHP 8.4, and taxon's `php: ^8.3` floor undercutting this package's
-`^8.2` promise.
+fixing out-of-scope things mid-task.
+
+Two queued items are big enough that you should know them before planning any
+work, because each one changes what a change to this package means:
+
+- **Reservation writes are not concurrency-safe.** No row locking on the
+  check-then-increment, so two simultaneous reserves over-commit the same stock on
+  PostgreSQL and MySQL. Invisible on SQLite, which is what the suite runs on.
+- **Reporting reads five other modules' tables directly**, which is why moving
+  categories into taxon broke reports at all.
+
+Also queued: the ignored
+`inventory:generate-recommendations --tenant` option and that command never being
+registered at all, the never-written `AccountingExporter` report-shape branching, the
+untested `getConsumptionByPeriod()` drivers, reservations being unable to span
+locations, receiving inspection, lot-aware stock selection, and widening the
+constraint matrix to Pest 5 / PHPUnit 13 / PHP 8.4.
 
 ## The gate
 
@@ -210,24 +272,43 @@ Full definition: `imports/package-quality-gate.md`. Skill: `/package-quality`.
 
 ## Testing
 
-Pest 3/4 + Orchestra Testbench. **The suite runs on in-memory SQLite**, not on
-DDEV's Postgres — `tests/TestCase.php` sets `database.default` to a `sqlite`
-`:memory:` connection. That is a deviation from the stack default, and it is why the
-`uuidv7()` bug above had to be fixed rather than worked around. DDEV's `db` service
-is PostgreSQL 17 and is not what the tests touch.
+Pest 3/4 + Orchestra Testbench. **The suite runs on the real PostgreSQL 18 in
+DDEV's `db` service**, on a database of its own named `testing` that
+`.ddev/config.yaml`'s post-start hook creates. It used to run on in-memory SQLite;
+that hid a live defect (the reservation availability lookup below) and left every
+piece of raw SQL unproven against the deployment target. `INVENTORY_TEST_DB_HOST`,
+`_PORT`, `_DATABASE`, `_USERNAME` and `_PASSWORD` override the connection.
+
+Because the whole suite shares one database, each test runs inside a
+`RefreshDatabase` transaction and the schema is built once per process. Nothing is
+order-dependent — `vendor/bin/pest --order-by=random` passes.
 
 `tests/TestCase.php` also fixes the shape of every test run:
 
 - Providers loaded: taxon, vendor, inventory.
-- Migrations come from `vendor/robinsonryan/{taxon,vendor}/database/migrations`
-  resolved through the composer install — **not** by walking up the directory tree,
-  because the sibling layout is unstable (`robinsonryan/vendor` lives in `vendor-pkg`).
-  A missing dependency throws one legible `RuntimeException` instead of scattering
-  "no such table" across the suite.
+- Migration directories are **registered with the migrator**, not loaded through
+  Testbench's `loadMigrationsFrom()`. That helper migrates and rolls back around
+  every single test, which on a real database means rebuilding thirty tables 527
+  times — it took the suite from 67 s to 530 s. Paths come from
+  `vendor/robinsonryan/{taxon,vendor}/database/migrations`, resolved through the
+  composer install rather than by walking up the directory tree, because the sibling
+  layout is unstable (`robinsonryan/vendor` lives in `vendor-pkg`). A missing
+  dependency throws one legible `RuntimeException` instead of scattering "no such
+  table" across the suite.
 - **Tenancy is ON**, bound to `FixedTenantResolver` with a constant tenant
   (`TestCase::TENANT_ID`). Do not turn it off to make a test pass — the tenant-scoped
   tables declare `tenant_id NOT NULL`, so there is no schema in which disabling it
   works. That shortcut previously killed 215 tests.
+- **Tag values are populated by a migration**, so every test starts with all six
+  vocabularies fully loaded. `TestCase` needs no seeding hook, and a test that
+  writes a status no longer creates it by accident.
+
+**What a green suite still does not prove.** Only the `pgsql` branch of any
+driver-aware code is exercised — `DemandAnalyzer::periodExpression()`'s sqlite and
+mysql branches, and the `CAST` in `ReservationService::findAvailableStock()`, are
+now the *unproven* halves. And every test runs in one transaction on one
+connection, so the concurrency gaps in `QUEUE.md` remain invisible: catching those
+needs a second connection opened by hand.
 
 ```bash
 ddev composer test
@@ -254,7 +335,7 @@ before inventing a variant.
 ## Quick reference
 
 - **DDEV**: `ddev start`, `ddev ssh` (project name `inventory`)
-- **Gate**: `ddev composer quality` (currently red — see above)
+- **Gate**: `ddev composer quality` (green — keep it that way; the hook runs the whole thing)
 - **Tests**: `ddev composer test`
 - **Style fix**: `ddev composer lint`
 - **Rector fix**: `ddev composer refactor`

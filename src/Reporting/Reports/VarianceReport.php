@@ -45,7 +45,10 @@ final class VarianceReport implements ReportInterface
                 DB::raw("CAST({$cycleCountLinesTable}.counted_quantity AS DECIMAL(15,4)) as counted_quantity"),
                 DB::raw("CAST({$cycleCountLinesTable}.counted_quantity - {$cycleCountLinesTable}.expected_quantity AS DECIMAL(15,4)) as variance"),
                 DB::raw("CAST(({$cycleCountLinesTable}.counted_quantity - {$cycleCountLinesTable}.expected_quantity) * COALESCE({$itemsTable}.cost, 0) AS DECIMAL(15,4)) as cost_impact"),
-                "{$cycleCountLinesTable}.reason",
+                // A count line records why it differs in its free-text note;
+                // there is no `reason` column on the table, and the report has
+                // always advertised the field under that name.
+                "{$cycleCountLinesTable}.notes as reason",
             ])
             ->whereNotNull("{$cycleCountsTable}.approved_at")
             ->orderByDesc("{$cycleCountsTable}.approved_at");

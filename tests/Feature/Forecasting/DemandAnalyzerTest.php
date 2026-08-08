@@ -27,9 +27,14 @@ describe('DemandAnalyzer', function (): void {
             quantity: 1000,
         ));
 
-        // Simulate 30 units consumed over 30 days (backdated movements)
+        // Simulate 30 units consumed over 30 days (backdated movements).
+        // `$today` is captured before the loop: inside it `Carbon::now()` returns
+        // the *mocked* now, so measuring from it would compound the offset and
+        // push every movement further into the past than intended.
+        $today = Carbon::now();
+
         for ($day = 1; $day <= 30; $day++) {
-            Carbon::setTestNow(Carbon::now()->subDays(30 - $day));
+            Carbon::setTestNow($today->copy()->subDays(30 - $day));
 
             $this->stockService->removeStock(new RemoveStockData(
                 itemId: $this->item->id,
@@ -56,9 +61,11 @@ describe('DemandAnalyzer', function (): void {
             quantity: 1000,
         ));
 
+        $today = Carbon::now();
+
         // First half: 10 units consumed (older period)
         for ($day = 1; $day <= 10; $day++) {
-            Carbon::setTestNow(Carbon::now()->subDays(60 - $day));
+            Carbon::setTestNow($today->copy()->subDays(60 - $day));
 
             $this->stockService->removeStock(new RemoveStockData(
                 itemId: $this->item->id,
@@ -70,7 +77,7 @@ describe('DemandAnalyzer', function (): void {
 
         // Second half: 50 units consumed (recent period) - much more
         for ($day = 1; $day <= 50; $day++) {
-            Carbon::setTestNow(Carbon::now()->subDays(30 - ($day % 30)));
+            Carbon::setTestNow($today->copy()->subDays(30 - ($day % 30)));
 
             $this->stockService->removeStock(new RemoveStockData(
                 itemId: $this->item->id,
@@ -95,9 +102,11 @@ describe('DemandAnalyzer', function (): void {
             quantity: 1000,
         ));
 
+        $today = Carbon::now();
+
         // First half: 50 units consumed (older period)
         for ($day = 1; $day <= 50; $day++) {
-            Carbon::setTestNow(Carbon::now()->subDays(60 - ($day % 30)));
+            Carbon::setTestNow($today->copy()->subDays(60 - ($day % 30)));
 
             $this->stockService->removeStock(new RemoveStockData(
                 itemId: $this->item->id,
@@ -109,7 +118,7 @@ describe('DemandAnalyzer', function (): void {
 
         // Second half: 10 units consumed (recent period) - much less
         for ($day = 1; $day <= 10; $day++) {
-            Carbon::setTestNow(Carbon::now()->subDays(15 - $day));
+            Carbon::setTestNow($today->copy()->subDays(15 - $day));
 
             $this->stockService->removeStock(new RemoveStockData(
                 itemId: $this->item->id,
@@ -134,9 +143,11 @@ describe('DemandAnalyzer', function (): void {
             quantity: 1000,
         ));
 
-        // Simulate consistent usage of 3 units/day for 30 days
+        // Simulate consistent usage of 3 units/day for 90 days
+        $today = Carbon::now();
+
         for ($day = 1; $day <= 90; $day++) {
-            Carbon::setTestNow(Carbon::now()->subDays(90 - $day));
+            Carbon::setTestNow($today->copy()->subDays(90 - $day));
 
             $this->stockService->removeStock(new RemoveStockData(
                 itemId: $this->item->id,

@@ -77,6 +77,31 @@ describe('ReserveForJob Action', function (): void {
         Event::assertDispatched(InsufficientStock::class);
     });
 
+    it('reports fragmented stock as insufficient instead of throwing', function (): void {
+        Event::fake([PartsReserved::class, InsufficientStock::class]);
+
+        $splitItemId = splitStockAcrossTwoLocations($this, 50);
+
+        $job = createMockJobWithItemsForAction([
+            ['item_id' => $this->itemId, 'quantity' => 10, 'line_id' => 'line-1'],
+            ['item_id' => $splitItemId, 'quantity' => 60, 'line_id' => 'line-2'],
+        ], 'WO-103');
+
+        $reservations = App::make(ReserveForJob::class)->execute($job);
+
+        expect($reservations)->toHaveCount(1)
+            ->and($reservations->first()->item_id)->toBe($this->itemId)
+            ->and($this->stockService->getAvailable($splitItemId))->toBe(100.0);
+
+        Event::assertDispatched(InsufficientStock::class, fn ($event): bool => $event->itemId === $splitItemId
+            && $event->requestedQuantity === 60.0
+            && $event->availableQuantity === 100.0
+            && $event->isFragmented()
+            && $event->largestLocationQuantity === 50.0);
+
+        Event::assertDispatched(PartsReserved::class, fn ($event): bool => count($event->reservations) === 1);
+    });
+
     it('reserves multiple items for job', function (): void {
         Event::fake([PartsReserved::class]);
 
@@ -299,7 +324,55 @@ describe('UpdateJobReservations Action', function (): void {
             && $event->requestedQuantity === 100.0
             && $event->availableQuantity === 50.0);
     });
+
+    it('reports fragmented stock as insufficient instead of throwing', function (): void {
+        $job = createMockJobWithItemsForAction([
+            ['item_id' => $this->itemId, 'quantity' => 20, 'line_id' => 'line-1'],
+        ], 'WO-135');
+
+        App::make(ReserveForJob::class)->execute($job);
+
+        Event::fake([PartsReserved::class, InsufficientStock::class]);
+
+        $splitItemId = splitStockAcrossTwoLocations($this, 50);
+
+        $updatedJob = createMockJobWithItemsForAction([
+            ['item_id' => $this->itemId, 'quantity' => 20, 'line_id' => 'line-1'],
+            ['item_id' => $splitItemId, 'quantity' => 60, 'line_id' => 'line-2'],
+        ], 'WO-135');
+
+        App::make(UpdateJobReservations::class)->execute($updatedJob);
+
+        expect($this->stockService->getAvailable($splitItemId))->toBe(100.0)
+            ->and($this->stockService->getAvailable($this->itemId, $this->location->id))->toBe(80.0);
+
+        Event::assertDispatched(InsufficientStock::class, fn ($event): bool => $event->itemId === $splitItemId
+            && $event->requestedQuantity === 60.0
+            && $event->availableQuantity === 100.0
+            && $event->isFragmented()
+            && $event->largestLocationQuantity === 50.0);
+
+        Event::assertNotDispatched(PartsReserved::class);
+    });
 });
+
+/**
+ * Stock a fresh item evenly over two locations, so no single record covers the total.
+ */
+function splitStockAcrossTwoLocations(object $test, float $perLocation): string
+{
+    $itemId = (string) Symfony\Component\Uid\Uuid::v7();
+
+    foreach ([$test->location, Location::factory()->warehouse()->create()] as $location) {
+        $test->stockService->addStock(new AddStockData(
+            itemId: $itemId,
+            locationId: $location->id,
+            quantity: $perLocation,
+        ));
+    }
+
+    return $itemId;
+}
 
 /**
  * Create a mock job implementing JobContract for action tests.

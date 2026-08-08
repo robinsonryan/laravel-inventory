@@ -43,9 +43,14 @@ describe('ReorderCalculator', function (): void {
             quantity: 1000,
         ));
 
-        // Create usage: 3 units/day for 30 days
-        for ($day = 1; $day <= 30; $day++) {
-            Carbon::setTestNow(Carbon::now()->subDays(30 - $day));
+        // Create usage: 3 units/day across the calculator's whole averaging
+        // window (90 days). `$today` is captured before the loop because inside
+        // it `Carbon::now()` returns the *mocked* now, which would compound the
+        // offset on every iteration.
+        $today = Carbon::now();
+
+        for ($day = 1; $day <= 90; $day++) {
+            Carbon::setTestNow($today->copy()->subDays(90 - $day));
 
             $this->stockService->removeStock(new RemoveStockData(
                 itemId: $item->id,
@@ -79,8 +84,10 @@ describe('ReorderCalculator', function (): void {
         ));
 
         // Create usage: 3 units/day for 90 days
+        $today = Carbon::now();
+
         for ($day = 1; $day <= 90; $day++) {
-            Carbon::setTestNow(Carbon::now()->subDays(90 - $day));
+            Carbon::setTestNow($today->copy()->subDays(90 - $day));
 
             $this->stockService->removeStock(new RemoveStockData(
                 itemId: $item->id,
@@ -112,9 +119,11 @@ describe('ReorderCalculator', function (): void {
             quantity: 30,
         ));
 
-        // Create usage: 3 units/day for 30 days
+        // Create usage: 1 unit/day for 30 days
+        $today = Carbon::now();
+
         for ($day = 1; $day <= 30; $day++) {
-            Carbon::setTestNow(Carbon::now()->subDays(30 - $day));
+            Carbon::setTestNow($today->copy()->subDays(30 - $day));
 
             $this->stockService->removeStock(new RemoveStockData(
                 itemId: $item->id,

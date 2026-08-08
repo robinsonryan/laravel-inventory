@@ -172,7 +172,7 @@ describe('ReceiveLine', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
-            ->has(PurchaseOrderLine::factory()->forItem($this->item->id), 'lines')
+            ->has(PurchaseOrderLine::factory()->forItem($this->item->id)->state(['quantity' => 100]), 'lines')
             ->create();
 
         $poLine = $po->lines->first();
@@ -195,7 +195,7 @@ describe('ReceiveLine', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
-            ->has(PurchaseOrderLine::factory()->forItem($this->item->id), 'lines')
+            ->has(PurchaseOrderLine::factory()->forItem($this->item->id)->state(['quantity' => 100]), 'lines')
             ->create();
 
         $poLine = $po->lines->first();
@@ -244,7 +244,7 @@ describe('ReceiveLine', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->draft()
-            ->has(PurchaseOrderLine::factory()->forItem($this->item->id), 'lines')
+            ->has(PurchaseOrderLine::factory()->forItem($this->item->id)->state(['quantity' => 100]), 'lines')
             ->create();
 
         $poLine = $po->lines->first();
@@ -313,8 +313,8 @@ describe('ReceiveMultipleLines', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
-            ->has(PurchaseOrderLine::factory()->forItem($this->item->id), 'lines')
-            ->has(PurchaseOrderLine::factory()->forItem($item2->id), 'lines')
+            ->has(PurchaseOrderLine::factory()->forItem($this->item->id)->state(['quantity' => 100]), 'lines')
+            ->has(PurchaseOrderLine::factory()->forItem($item2->id)->state(['quantity' => 100]), 'lines')
             ->create();
 
         $lines = $po->lines;
@@ -377,7 +377,7 @@ describe('Receipt Model', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
-            ->has(PurchaseOrderLine::factory()->forItem($this->item->id), 'lines')
+            ->has(PurchaseOrderLine::factory()->forItem($this->item->id)->state(['quantity' => 100]), 'lines')
             ->create();
 
         $poLine = $po->lines->first();
@@ -403,7 +403,7 @@ describe('ReceiptLine Model', function (): void {
         $po = PurchaseOrder::factory()
             ->forVendor($this->vendor->id)
             ->submitted()
-            ->has(PurchaseOrderLine::factory()->forItem($this->item->id), 'lines')
+            ->has(PurchaseOrderLine::factory()->forItem($this->item->id)->state(['quantity' => 100]), 'lines')
             ->create();
 
         $poLine = $po->lines->first();

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\App;
+use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrder;
 use RobinsonRyan\Inventory\Purchasing\Models\PurchaseOrderLine;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
 use RobinsonRyan\Inventory\Reporting\Reports\PurchaseOrderReport;
 use RobinsonRyan\Inventory\Reporting\Services\ReportService;
+use RobinsonRyan\Inventory\Stock\Models\Location;
 use Symfony\Component\Uid\Uuid;
 
 beforeEach(function (): void {
@@ -102,7 +104,9 @@ describe('PurchaseOrderReport', function (): void {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()['po_number'])->toBe('PO-SUBMITTED');
+            ->and($data->rows->first()['po_number'])->toBe('PO-SUBMITTED')
+            ->and($data->rows->first()['status_value'])->toBe('submitted')
+            ->and($data->rows->first()['status_label'])->toBe('Submitted');
     });
 
     it('calculates received and pending values', function (): void {
@@ -142,12 +146,20 @@ describe('PurchaseOrderReport', function (): void {
             'updated_at' => Carbon::now(),
         ]);
 
+        // A receipt line is stock arriving somewhere: it names the item, the
+        // place it landed and how much turned up. It carries no price — the
+        // report values it at the order line's agreed unit cost, so 5 units
+        // against line1's $50.00 is $250 received.
+        $item = Item::factory()->create();
+        $location = Location::factory()->warehouse()->create();
+
         Illuminate\Support\Facades\DB::table($receiptLinesTable)->insert([
             'id' => (string) Uuid::v7(),
             'receipt_id' => $receiptId,
             'purchase_order_line_id' => $line1->id,
-            'received_quantity' => 5,
-            'unit_cost' => 50.00, // $250 received
+            'item_id' => $item->id,
+            'location_id' => $location->id,
+            'quantity' => 5,
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now(),
         ]);
@@ -184,7 +196,9 @@ describe('PurchaseOrderReport', function (): void {
 
         expect($columnKeys)->toContain('po_id')
             ->toContain('po_number')
-            ->toContain('status')
+            // The status is tag-backed, so the declared column is the label;
+            // the stable value rides along undeclared for the JSON feed.
+            ->toContain('status_label')
             ->toContain('vendor_id')
             ->toContain('vendor_name')
             ->toContain('order_date')

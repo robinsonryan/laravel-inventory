@@ -30,8 +30,8 @@ describe('CycleCountStatusDefinition', function (): void {
         expect(CycleCountStatusDefinition::DEFAULT_VALUES)->toContain('draft');
     });
 
-    it('has in_progress status', function (): void {
-        expect(CycleCountStatusDefinition::DEFAULT_VALUES)->toContain('in_progress');
+    it('has in-progress status', function (): void {
+        expect(CycleCountStatusDefinition::DEFAULT_VALUES)->toContain('in-progress');
     });
 
     it('has pending status', function (): void {
@@ -52,7 +52,7 @@ describe('CycleCountStatusDefinition', function (): void {
 
     it('defines open statuses array', function (): void {
         expect(CycleCountStatusDefinition::OPEN)
-            ->toBe(['draft', 'in_progress', 'pending']);
+            ->toBe(['draft', 'in-progress', 'pending']);
     });
 
     it('defines terminal statuses array', function (): void {
@@ -86,8 +86,8 @@ describe('CycleCountStatusDefinition', function (): void {
             expect(CycleCountStatusDefinition::OPEN)->toContain('draft');
         });
 
-        it('in_progress is an open status', function (): void {
-            expect(CycleCountStatusDefinition::OPEN)->toContain('in_progress');
+        it('in-progress is an open status', function (): void {
+            expect(CycleCountStatusDefinition::OPEN)->toContain('in-progress');
         });
 
         it('pending is an open status', function (): void {

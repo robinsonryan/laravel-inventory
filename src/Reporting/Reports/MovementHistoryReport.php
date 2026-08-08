@@ -10,7 +10,12 @@ use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Reporting\Contracts\ReportInterface;
 use RobinsonRyan\Inventory\Reporting\Data\ColumnDefinition;
 use RobinsonRyan\Inventory\Reporting\Data\ReportData;
+use RobinsonRyan\Inventory\Reporting\Support\TagRowValues;
+use RobinsonRyan\Inventory\Stock\Models\StockMovement;
+use RobinsonRyan\Inventory\Stock\TagDefinitions\MovementTypeDefinition;
+use RobinsonRyan\Inventory\Support\ModelResolver;
 use RobinsonRyan\Inventory\Support\TableResolver;
+use RobinsonRyan\Inventory\Support\TagQuery;
 
 final class MovementHistoryReport implements ReportInterface
 {
@@ -37,7 +42,6 @@ final class MovementHistoryReport implements ReportInterface
             ->select([
                 "{$movementsTable}.id as movement_id",
                 "{$movementsTable}.created_at",
-                "{$movementsTable}.type",
                 "{$movementsTable}.item_id",
                 "{$itemsTable}.sku as item_sku",
                 "{$itemsTable}.name as item_name",
@@ -74,8 +78,14 @@ final class MovementHistoryReport implements ReportInterface
             });
         }
 
+        // The movement type is a tag, so it is filtered through the ids taxon
+        // says carry that value rather than through a column that does not exist.
         if ($this->movementType !== null) {
-            $query->where("{$movementsTable}.type", $this->movementType);
+            $query->whereIn("{$movementsTable}.id", TagQuery::filterIdsByTagValue(
+                ModelResolver::resolve('stock_movement', StockMovement::class),
+                MovementTypeDefinition::class,
+                $this->movementType,
+            ));
         }
 
         if ($this->referenceType !== null) {
@@ -90,6 +100,14 @@ final class MovementHistoryReport implements ReportInterface
         // than leaving every exporter to cast defensively.
         /** @var Collection<int, array<string, mixed>> $rows */
         $rows = $query->get()->map(fn (object $row): array => (array) $row);
+
+        $rows = TagRowValues::attach(
+            $rows,
+            ModelResolver::resolve('stock_movement', StockMovement::class),
+            MovementTypeDefinition::class,
+            'movement_id',
+            'type',
+        );
 
         // Calculate summary
         $totalMovements = $rows->count();
@@ -132,7 +150,7 @@ final class MovementHistoryReport implements ReportInterface
         return [
             new ColumnDefinition('movement_id', 'Movement ID', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('created_at', 'Date/Time', ColumnDefinition::TYPE_DATETIME),
-            new ColumnDefinition('type', 'Type', ColumnDefinition::TYPE_STRING),
+            new ColumnDefinition('type_label', 'Type', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('item_id', 'Item ID', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('item_sku', 'SKU', ColumnDefinition::TYPE_STRING),
             new ColumnDefinition('item_name', 'Item Name', ColumnDefinition::TYPE_STRING),

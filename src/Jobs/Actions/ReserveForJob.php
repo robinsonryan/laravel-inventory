@@ -7,6 +7,7 @@ namespace RobinsonRyan\Inventory\Jobs\Actions;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Event;
 use RobinsonRyan\Inventory\Contracts\JobContract;
+use RobinsonRyan\Inventory\Exceptions\CannotReserveException;
 use RobinsonRyan\Inventory\Jobs\Events\InsufficientStock;
 use RobinsonRyan\Inventory\Jobs\Events\PartsReserved;
 use RobinsonRyan\Inventory\Stock\Data\ReservationData;
@@ -45,16 +46,21 @@ final readonly class ReserveForJob
                 continue;
             }
 
-            $reservation = $this->reservationService->reserve(new ReservationData(
-                itemId: $item['item_id'],
-                jobType: $jobType,
-                jobId: $jobId,
-                quantity: $quantity,
-                lineId: $item['line_id'] ?? null,
-                expiryHours: config('inventory.rules.reservation_expiry_hours'),
-            ));
-
-            $reservations->push($reservation);
+            try {
+                $reservations->push($this->reservationService->reserve(new ReservationData(
+                    itemId: $item['item_id'],
+                    jobType: $jobType,
+                    jobId: $jobId,
+                    quantity: $quantity,
+                    lineId: $item['line_id'] ?? null,
+                    expiryHours: config('inventory.rules.reservation_expiry_hours'),
+                )));
+            } catch (CannotReserveException $refusal) {
+                // Stock that exists but sits in more than one location cannot back
+                // a single reservation. Reported through the same event as an
+                // outright shortage, which distinguishes the two.
+                Event::dispatch(InsufficientStock::fromRefusal($jobType, $jobId, $refusal));
+            }
         }
 
         if ($reservations->isNotEmpty()) {

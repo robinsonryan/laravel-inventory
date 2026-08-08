@@ -3,22 +3,25 @@
 declare(strict_types=1);
 
 use RobinsonRyan\Inventory\Contracts\JobContract;
-use RobinsonRyan\Inventory\Jobs\Listeners\ConsumeOnJobCompleted;
-use RobinsonRyan\Inventory\Jobs\Listeners\ReleaseOnJobCancelled;
+use RobinsonRyan\Inventory\Contracts\ReservationContract;
 use RobinsonRyan\Inventory\Jobs\Listeners\ReserveOnJobCreated;
 use RobinsonRyan\Inventory\Stock\Data\ReservationData;
 use RobinsonRyan\Inventory\Stock\Models\Reservation;
-use RobinsonRyan\Inventory\Stock\Services\ReservationService;
 
+/**
+ * These cover only what the listener itself decides: which event property carries
+ * the job, whether the job is one it handles, and the reservation request it builds.
+ * Everything the reservation service then does with that request is proved against
+ * real records in tests/Feature/Jobs/ReservationIntegrationTest.php — a listener
+ * that "called reserve on a fake" tells us nothing about whether stock moved.
+ */
 describe('ReserveOnJobCreated', function (): void {
     it('extracts job from event->job property', function (): void {
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('canReserve')->andReturn(true);
-        $mockService->shouldReceive('reserve')->andReturn(
-            Mockery::mock(Reservation::class),
-        );
+        $reservations = Mockery::mock(ReservationContract::class);
+        $reservations->shouldReceive('canReserve')->andReturn(true);
+        $reservations->shouldReceive('reserve')->once()->andReturn(new Reservation);
 
-        $listener = new ReserveOnJobCreated($mockService);
+        $listener = new ReserveOnJobCreated($reservations);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-001');
         $event = new class($job)
@@ -27,18 +30,14 @@ describe('ReserveOnJobCreated', function (): void {
         };
 
         $listener->handle($event);
-
-        $mockService->shouldHaveReceived('reserve')->once();
     });
 
     it('extracts job from event->workOrder property', function (): void {
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('canReserve')->andReturn(true);
-        $mockService->shouldReceive('reserve')->andReturn(
-            Mockery::mock(Reservation::class),
-        );
+        $reservations = Mockery::mock(ReservationContract::class);
+        $reservations->shouldReceive('canReserve')->andReturn(true);
+        $reservations->shouldReceive('reserve')->once()->andReturn(new Reservation);
 
-        $listener = new ReserveOnJobCreated($mockService);
+        $listener = new ReserveOnJobCreated($reservations);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-002');
         $event = new class($job)
@@ -47,18 +46,14 @@ describe('ReserveOnJobCreated', function (): void {
         };
 
         $listener->handle($event);
-
-        $mockService->shouldHaveReceived('reserve')->once();
     });
 
     it('extracts job from event->model property', function (): void {
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('canReserve')->andReturn(true);
-        $mockService->shouldReceive('reserve')->andReturn(
-            Mockery::mock(Reservation::class),
-        );
+        $reservations = Mockery::mock(ReservationContract::class);
+        $reservations->shouldReceive('canReserve')->andReturn(true);
+        $reservations->shouldReceive('reserve')->once()->andReturn(new Reservation);
 
-        $listener = new ReserveOnJobCreated($mockService);
+        $listener = new ReserveOnJobCreated($reservations);
 
         $job = createUnitTestMockJob('item-1', 10, 'WO-003');
         $event = new class($job)
@@ -67,26 +62,22 @@ describe('ReserveOnJobCreated', function (): void {
         };
 
         $listener->handle($event);
-
-        $mockService->shouldHaveReceived('reserve')->once();
     });
 
     it('does nothing when event has no job property', function (): void {
-        $mockService = Mockery::mock(ReservationService::class);
+        $reservations = Mockery::mock(ReservationContract::class);
+        $reservations->shouldNotReceive('reserve');
 
-        $listener = new ReserveOnJobCreated($mockService);
+        $listener = new ReserveOnJobCreated($reservations);
 
-        $event = new class {};
-
-        $listener->handle($event);
-
-        $mockService->shouldNotHaveReceived('reserve');
+        $listener->handle(new class {});
     });
 
     it('does nothing when job does not implement JobContract', function (): void {
-        $mockService = Mockery::mock(ReservationService::class);
+        $reservations = Mockery::mock(ReservationContract::class);
+        $reservations->shouldNotReceive('reserve');
 
-        $listener = new ReserveOnJobCreated($mockService);
+        $listener = new ReserveOnJobCreated($reservations);
 
         $event = new class
         {
@@ -102,23 +93,22 @@ describe('ReserveOnJobCreated', function (): void {
         };
 
         $listener->handle($event);
-
-        $mockService->shouldNotHaveReceived('reserve');
     });
 
     it('creates reservation with correct data', function (): void {
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('canReserve')
+        $captured = null;
+
+        $reservations = Mockery::mock(ReservationContract::class);
+        $reservations->shouldReceive('canReserve')
             ->with('item-123', 25.0)
             ->andReturn(true);
 
-        $mockService->shouldReceive('reserve')
-            ->withArgs(fn (ReservationData $data): bool => $data->itemId === 'item-123'
-                && $data->quantity === 25.0
-                && $data->lineId === 'line-001')
-            ->andReturn(Mockery::mock(Reservation::class));
+        $reservations->shouldReceive('reserve')
+            ->once()
+            ->with(Mockery::capture($captured))
+            ->andReturn(new Reservation);
 
-        $listener = new ReserveOnJobCreated($mockService);
+        $listener = new ReserveOnJobCreated($reservations);
 
         $job = createUnitTestMockJobWithLine('item-123', 25, 'WO-004', 'line-001');
         $event = new class($job)
@@ -128,239 +118,12 @@ describe('ReserveOnJobCreated', function (): void {
 
         $listener->handle($event);
 
-        $mockService->shouldHaveReceived('reserve')->once();
-    });
-});
-
-describe('ConsumeOnJobCompleted', function (): void {
-    it('fulfills all reserved reservations', function (): void {
-        $reservation1 = Mockery::mock(Reservation::class);
-        $reservation1->status = 'reserved';
-
-        $reservation2 = Mockery::mock(Reservation::class);
-        $reservation2->status = 'reserved';
-
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('getForJob')
-            ->andReturn(collect([$reservation1, $reservation2]));
-        $mockService->shouldReceive('fulfill')
-            ->twice()
-            ->andReturn(Mockery::mock(RobinsonRyan\Inventory\Stock\Models\StockMovement::class));
-
-        $listener = new ConsumeOnJobCompleted($mockService);
-
-        $job = createUnitTestMockJob('item-1', 10, 'WO-010');
-        $event = new class($job)
-        {
-            public function __construct(public JobContract $job) {}
-        };
-
-        $listener->handle($event);
-
-        $mockService->shouldHaveReceived('fulfill')->twice();
-    });
-
-    it('fulfills partial reservations', function (): void {
-        $reservation = Mockery::mock(Reservation::class);
-        $reservation->status = 'partial';
-
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('getForJob')
-            ->andReturn(collect([$reservation]));
-        $mockService->shouldReceive('fulfill')
-            ->once()
-            ->andReturn(Mockery::mock(RobinsonRyan\Inventory\Stock\Models\StockMovement::class));
-
-        $listener = new ConsumeOnJobCompleted($mockService);
-
-        $job = createUnitTestMockJob('item-1', 10, 'WO-011');
-        $event = new class($job)
-        {
-            public function __construct(public JobContract $job) {}
-        };
-
-        $listener->handle($event);
-
-        $mockService->shouldHaveReceived('fulfill')->once();
-    });
-
-    it('skips already fulfilled reservations', function (): void {
-        $reservation = Mockery::mock(Reservation::class);
-        $reservation->status = 'fulfilled';
-
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('getForJob')
-            ->andReturn(collect([$reservation]));
-
-        $listener = new ConsumeOnJobCompleted($mockService);
-
-        $job = createUnitTestMockJob('item-1', 10, 'WO-012');
-        $event = new class($job)
-        {
-            public function __construct(public JobContract $job) {}
-        };
-
-        $listener->handle($event);
-
-        $mockService->shouldNotHaveReceived('fulfill');
-    });
-
-    it('skips cancelled reservations', function (): void {
-        $reservation = Mockery::mock(Reservation::class);
-        $reservation->status = 'cancelled';
-
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('getForJob')
-            ->andReturn(collect([$reservation]));
-
-        $listener = new ConsumeOnJobCompleted($mockService);
-
-        $job = createUnitTestMockJob('item-1', 10, 'WO-013');
-        $event = new class($job)
-        {
-            public function __construct(public JobContract $job) {}
-        };
-
-        $listener->handle($event);
-
-        $mockService->shouldNotHaveReceived('fulfill');
-    });
-});
-
-describe('ReleaseOnJobCancelled', function (): void {
-    it('releases pending reservations', function (): void {
-        $reservation = Mockery::mock(Reservation::class);
-        $reservation->status = 'pending';
-        $reservation->shouldReceive('refresh');
-
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('getForJob')
-            ->andReturn(collect([$reservation]));
-        $mockService->shouldReceive('release')
-            ->once();
-
-        $listener = new ReleaseOnJobCancelled($mockService);
-
-        $job = createUnitTestMockJob('item-1', 10, 'WO-020');
-        $event = new class($job)
-        {
-            public function __construct(public JobContract $job) {}
-        };
-
-        $listener->handle($event);
-
-        $mockService->shouldHaveReceived('release')->once();
-    });
-
-    it('releases reserved reservations', function (): void {
-        $reservation = Mockery::mock(Reservation::class);
-        $reservation->status = 'reserved';
-        $reservation->shouldReceive('refresh');
-
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('getForJob')
-            ->andReturn(collect([$reservation]));
-        $mockService->shouldReceive('release')
-            ->once();
-
-        $listener = new ReleaseOnJobCancelled($mockService);
-
-        $job = createUnitTestMockJob('item-1', 10, 'WO-021');
-        $event = new class($job)
-        {
-            public function __construct(public JobContract $job) {}
-        };
-
-        $listener->handle($event);
-
-        $mockService->shouldHaveReceived('release')->once();
-    });
-
-    it('releases partial reservations', function (): void {
-        $reservation = Mockery::mock(Reservation::class);
-        $reservation->status = 'partial';
-        $reservation->shouldReceive('refresh');
-
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('getForJob')
-            ->andReturn(collect([$reservation]));
-        $mockService->shouldReceive('release')
-            ->once();
-
-        $listener = new ReleaseOnJobCancelled($mockService);
-
-        $job = createUnitTestMockJob('item-1', 10, 'WO-022');
-        $event = new class($job)
-        {
-            public function __construct(public JobContract $job) {}
-        };
-
-        $listener->handle($event);
-
-        $mockService->shouldHaveReceived('release')->once();
-    });
-
-    it('skips fulfilled reservations', function (): void {
-        $reservation = Mockery::mock(Reservation::class);
-        $reservation->status = 'fulfilled';
-
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('getForJob')
-            ->andReturn(collect([$reservation]));
-
-        $listener = new ReleaseOnJobCancelled($mockService);
-
-        $job = createUnitTestMockJob('item-1', 10, 'WO-023');
-        $event = new class($job)
-        {
-            public function __construct(public JobContract $job) {}
-        };
-
-        $listener->handle($event);
-
-        $mockService->shouldNotHaveReceived('release');
-    });
-
-    it('skips already cancelled reservations', function (): void {
-        $reservation = Mockery::mock(Reservation::class);
-        $reservation->status = 'cancelled';
-
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('getForJob')
-            ->andReturn(collect([$reservation]));
-
-        $listener = new ReleaseOnJobCancelled($mockService);
-
-        $job = createUnitTestMockJob('item-1', 10, 'WO-024');
-        $event = new class($job)
-        {
-            public function __construct(public JobContract $job) {}
-        };
-
-        $listener->handle($event);
-
-        $mockService->shouldNotHaveReceived('release');
-    });
-
-    it('skips expired reservations', function (): void {
-        $reservation = Mockery::mock(Reservation::class);
-        $reservation->status = 'expired';
-
-        $mockService = Mockery::mock(ReservationService::class);
-        $mockService->shouldReceive('getForJob')
-            ->andReturn(collect([$reservation]));
-
-        $listener = new ReleaseOnJobCancelled($mockService);
-
-        $job = createUnitTestMockJob('item-1', 10, 'WO-025');
-        $event = new class($job)
-        {
-            public function __construct(public JobContract $job) {}
-        };
-
-        $listener->handle($event);
-
-        $mockService->shouldNotHaveReceived('release');
+        expect($captured)->toBeInstanceOf(ReservationData::class)
+            ->and($captured->itemId)->toBe('item-123')
+            ->and($captured->quantity)->toBe(25.0)
+            ->and($captured->lineId)->toBe('line-001')
+            ->and($captured->jobId)->toBe('WO-004')
+            ->and($captured->jobType)->toBe($job::class);
     });
 });
 

@@ -64,8 +64,11 @@ describe('StockValuationReport', function (): void {
     });
 
     it('filters by item category', function (): void {
-        $partItem = Item::factory()->create(['category' => 'part']);
-        $supplyItem = Item::factory()->create(['category' => 'supply']);
+        // The category is a tag, and taxon writes the pivot row immediately, so
+        // it can only be set once the item has an id. The factory states do
+        // exactly that, after creating.
+        $partItem = Item::factory()->part()->create();
+        $supplyItem = Item::factory()->supply()->create();
 
         Stock::factory()
             ->forItem($partItem->id)
@@ -83,7 +86,8 @@ describe('StockValuationReport', function (): void {
         $data = $this->reportService->generate($report);
 
         expect($data->rows)->toHaveCount(1)
-            ->and($data->rows->first()['category'])->toBe('part');
+            ->and($data->rows->first()['category_value'])->toBe('part')
+            ->and($data->rows->first()['category_label'])->toBe('Part');
     });
 
     it('calculates totals correctly', function (): void {
@@ -126,7 +130,9 @@ describe('StockValuationReport', function (): void {
         expect($columnKeys)->toContain('item_id')
             ->toContain('item_sku')
             ->toContain('item_name')
-            ->toContain('category')
+            // The category is tag-backed, so the declared column is the label;
+            // the stable value rides along undeclared for the JSON feed.
+            ->toContain('category_label')
             ->toContain('location_id')
             ->toContain('location_code')
             ->toContain('location_name')
