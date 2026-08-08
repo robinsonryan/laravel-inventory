@@ -36,19 +36,102 @@ If it is ever taken on, the shape:
 Estimate: 2–3 focused days, most of it in the reporting code that the "Reporting reads five
 other modules' tables directly" item below wants replaced anyway. Sequence them.
 
-### Reservation writes are not safe under concurrency
+### Plain stock writes are still not safe under concurrency
 
-- **Added**: 2026-08-08 · test-suite repair review
+- **Added**: 2026-08-08 · while locking the reservation writes
 - **Tier**: LIGHT
-- **Context**: `reserve()` reads availability then increments with no `lockForUpdate`, and
-  `fulfill()`/`partialFulfill()` re-read the stored row inside their transaction without locking it.
-  Two concurrent reserves against the same stock both pass the check and over-commit the hold; two
-  concurrent fulfilments race. Real on PostgreSQL and MySQL — which is the deployment target. The
-  suite now runs on PostgreSQL, so a concurrency test is finally *possible* here, but every test
-  runs inside one `RefreshDatabase` transaction, so a second connection would need to be opened by
-  hand. Direction: lock the stock row, or push the check into the update itself
-  (`UPDATE … WHERE quantity - reserved_quantity >= ?`), which also reuses the bound-parameter cast
-  lesson from the SQLite affinity bug.
+- **Context**: the reservation paths are now locked, and nothing else is. `Stock\Actions\RemoveStock`
+  reads a stock record, computes `quantity - reserved_quantity`, decides, and saves — the same
+  check-then-act shape the reservation bug had, so two simultaneous removals can each pass the
+  availability check and overdraw the shelf. `AddStock`, `TransferStock` and `AdjustStock` read and
+  write the same records; `AdjustStock` is the worst of them because it writes an absolute quantity,
+  so a concurrent movement is simply erased rather than merely miscounted. Purchasing receipts and
+  cycle-count variance adjustments reach the same records through those actions.
+- **Direction**: `Stock\Services\StockService` already wraps each action in `DB::transaction`, so
+  the fix is the same one `ReservationService::findAvailableStock()` uses — lock the record on the
+  way in, in primary-key order — plus a decision about `TransferStock`, which touches two records
+  and therefore has a genuine ordering requirement rather than a nominal one.
+- **Testable**: yes, now. `tests/Concurrency/` has the harness — a base class without the per-test
+  transaction, and `Support\CompetingWriter`, which drives a second process holding a real lock and
+  signals over a file handshake.
+- **Also owns the deadlock ordering problem below.** Ryan's decision, 2026-08-08: the reservation
+  paths' remaining lock-ordering gap is not its own queue item, because fixing it needs the same
+  choices this one already owes for `TransferStock`.
+
+**The stock deadlock: two paths take the same two records in opposite order**
+
+Locking the reservation writes removed the silent over-promising. It did **not** give the package a
+global lock order, and the docblocks that first shipped with that fix claimed it did. They have been
+corrected rather than quietly left — `ReservationService::expireOld()`, `::findAvailableStock()` and
+`::syncFromStorage()` now state the true position, and this section is the fix for what they admit.
+What holds today is narrow and worth stating exactly: reservations are locked before stock in every
+path, and `reserve()` takes stock without ever wanting a reservation, so there is **no
+reservation-stock cycle**. Stock-stock cycles are a different matter.
+
+*Why the cycle exists — first counterexample: the sweep against a fulfilment, at a shelf holding two
+lots.* Main Warehouse holds one item in two lots, so two stock records: **S1** (lot A) and **S2**
+(lot B). Two expired reservations charge them — **R-early** (the lower id) charges S2, **R-late**
+charges S1. The expiry sweep locks both reservation rows in one statement, then walks them in id
+order: R-early first, so it decrements **S2** and holds it; then R-late, so it wants **S1**.
+Meanwhile a third reservation bound to S1 is being fulfilled on another connection. `fulfill()`
+calls `returnHold()`, which decrements the record its reservation actually charged — **S1**, now
+held. Then it calls `removeStock()`, and this is where it goes wrong: `fulfill()` builds its
+`RemoveStockData` with no lot number (`src/Stock/Services/ReservationService.php:154`, and
+`partialFulfill()` the same at `:194`), and
+`RemoveStock` filters on item and location alone with a bare `->first()` and no ordering
+(`src/Stock/Actions/RemoveStock.php:22-27`). So it can pick **S2** — a different record from the one
+the reservation charged — and want it. Sweep holds S2 and wants S1; fulfilment holds S1 and wants
+S2. That is the cycle. Note the fulfilment's own reservation is not expired, so the sweep is not
+holding it: nothing about this is a reservation-lock problem.
+
+*Second counterexample: a host reserving several items in one transaction.* `orderBy('id')` on the
+candidate search orders candidates **within a single item's search**. It says nothing about the
+order across the several searches a caller issues. Host A opens a transaction and calls
+`reserve(WIDGET)` then `reserve(GADGET)`, taking WIDGET's stock record and then GADGET's. Host B, in
+its own transaction, calls `reserve(GADGET)` then `reserve(WIDGET)`. Each ends up holding the record
+the other is waiting for. This is exactly the scenario the original docblock cited as the thing
+`orderBy('id')` had fixed. It had not.
+
+*What it costs today.* PostgreSQL detects both cycles and aborts one of the two transactions with a
+deadlock error (SQLSTATE `40P01`). Read that precisely in both directions. It is **not** a return of
+the silent over-promising this concurrency work eliminated — no stock is lost, no hold is
+double-counted, and the surviving transaction is correct; the aborted one rolls back whole. Equally
+it is **not** harmless: a host doing multi-item or lot-split writes under load will see failed
+transactions it did not ask for, and if it does not retry them, work simply does not happen. The
+honest summary is that the failure mode has been converted from a wrong number nobody can see into a
+loud error somebody has to handle — which is the trade this whole locking exercise was making, and
+the reason this is queued rather than urgent.
+
+*What a fix has to decide.* This is real work, not a patch:
+
+- **Lot-aware record selection.** `fulfill()` and `partialFulfill()` should consume the record their
+  reservation actually charged (`reservations.stock_id` is right there) rather than letting
+  `RemoveStock` re-pick by item and location. That removes the first counterexample outright, and it
+  is the same decision as the queued *Stock record selection ignores lots and expiry* item below.
+  **These two should probably merge** — that item already owns `RemoveStock`'s unordered `->first()`
+  and the lot/expiry ordering question, and fixing either one alone leaves the other's symptom in
+  place. Whoever picks this up should make that call first, before touching code.
+- **A global lock-acquisition order for stock records** that holds *across* items and across calls,
+  not merely within one candidate search. The likely shape is a batch entry point that collects the
+  whole working set, sorts it by primary key, and takes every lock before doing any work — which
+  means reservations acquire a plural API, and `reserve()` becomes the single-element case of it.
+- **`TransferStock` needs the same rule.** It touches two records by definition, and it is already in
+  this item's scope. Whatever ordering rule the point above produces has to cover it, so design the
+  rule once for both rather than fixing transfer with a local convention.
+- **Retry: the package's job or the host's?** Right now it is the host's, documented in `CHANGELOG.md`
+  and in the corrected docblocks, and the package imposes no `lock_timeout` anywhere either. The
+  alternative is a bounded retry inside `StockService`'s transaction wrapper. Decide deliberately —
+  retrying inside a transaction the host opened is not something a library can do safely without
+  saying so loudly, and a `lock_timeout` chosen by a library is a latency budget chosen by a library.
+
+*Where to start.* `tests/Concurrency/` is the harness: `Tests\ConcurrencyTestCase` drops the per-test
+transaction, and `Tests\Support\CompetingWriter` drives a competing OS process that takes a real row
+lock and signals over a file handshake. A deadlock test is buildable there with a **third** process,
+so two competitors can hold the two records in opposite order while the test's own connection plays
+the third party. Write the assertion carefully: a deadlock test must assert *which* transaction
+survives and that the stock totals afterwards are still correct — asserting merely that "an error was
+raised" would pass just as happily on a lock timeout, a connection drop, or the bug still being
+there.
 
 ### A reservation cannot span locations, so spread stock is refused
 
@@ -82,6 +165,10 @@ other modules' tables directly" item below wants replaced anyway. Sequence them.
   wrong for anything perishable. `RemoveStock` picks its record with `->first()` and no ordering at
   all, so with several lots in one location it can decrement a *different* record than the one
   holding the reservation. Aggregates stay correct; per-record quantities drift.
+- **Overlaps the deadlock section in *Plain stock writes are still not safe under concurrency*
+  above**, which needs the same change for a different reason: `RemoveStock` re-picking a record its
+  reservation never charged is one half of the sweep-versus-fulfilment lock cycle. Consider merging
+  the two items before starting either — that decision is called out there.
 
 ### `inventory:generate-recommendations` is never registered
 
@@ -199,6 +286,39 @@ and no rework owed. `vendor-pkg` is 3 commits ahead of `v0.1.1`, but all three t
 ## Blocked
 
 ## Archive
+
+### ~~Reservation writes are not safe under concurrency~~ — RESOLVED 2026-08-08
+- **Resolved by**: row locking, not a conditional update. `findAvailableStock()` takes
+  `SELECT … FOR UPDATE` on the record it is about to charge, and `syncFromStorage()` and the expiry
+  sweep take it on the reservation rows they are about to close. The conditional-update alternative
+  (`UPDATE … WHERE quantity - reserved_quantity >= ?`, then read the affected row count) was rejected
+  because it only covers `reserve()`: double *fulfilment* is a race over a reservation's state, not
+  over a number, so there is no arithmetic to push the check into, and locking would have been
+  needed there regardless. One mechanism for one problem.
+- **Ordering, stated accurately**: reservations are locked before stock in every path, and
+  `reserve()` never wants a reservation lock, so there is no reservation-stock cycle. That is the
+  whole of the guarantee. Stock-stock cycles remain reachable — a sweep against a fulfilment at a
+  lot-split location, and two hosts reserving the same several items in opposite order — because
+  `orderBy('id')` only orders candidates within a single query, not across the several a caller
+  issues. PostgreSQL aborts one side with a deadlock error, so the failure is loud and retryable
+  rather than a wrong number. The docblocks originally shipped with this fix claimed more than
+  that and have been corrected; the remaining ordering work is folded into the plain-stock-writes
+  item above, which already owed the same decision for `TransferStock`.
+- **A bonus PostgreSQL gives for free**: `FOR UPDATE` re-evaluates the availability predicate after
+  the wait, and a `LIMIT 1` scan moves on to the next candidate when the row it waited for no longer
+  qualifies. So a caller that loses a race for one record is served from another where one exists,
+  rather than refused. Proven, not assumed — `tests/Concurrency/ReservationConcurrencyTest.php`
+  asserts it.
+- **Tests**: four, in a new `Concurrency` testsuite that runs *outside* the per-test transaction
+  (`Tests\ConcurrencyTestCase`), against committed fixtures, with `Tests\Support\CompetingWriter`
+  driving a second OS process that holds a real row lock over a file handshake. Each of the three
+  `lockForUpdate()` calls was verified red **on its own**, not merely as a set: deleting the
+  candidate-search lock over-commits the shelf and binds a reservation to a record another
+  connection had emptied; deleting the re-read lock lets one reservation be consumed twice;
+  deleting the sweep's lock hands the same hold back twice, leaving a reserved quantity of −60
+  against a shelf of 100. The sweep's lock had no test of its own when this fix first landed —
+  that was a review finding, and the fourth test is the answer to it.
+- **Not covered**: everything that is not a reservation — see the plain-stock-writes item above.
 
 ### ~~`config('inventory.tenant.enabled')` and `.scoped` are read by nothing~~ — RESOLVED 2026-08-08
 - **Resolved by**: deleting both keys. Ryan's call: the package records tenant ownership and does
