@@ -103,15 +103,48 @@ Root causes, largest first:
 - **Why deferred**: harness-wide decision made first; per-package constraint widening is independent work
 - **Context**: current: php ^8.2 (lowered from ^8.3 by Track P/D-C), pest ^3.0|^4.0. Widen composer constraints to include pest ^5 / phpunit ^13 / php 8.4+ and run the suite on the new matrix. Research + decisions: $CLAUDE_HARNESS_DIR/notes/harness-health-research-2026-08.md
 
-### Raise `robinsonryan/taxon`'s php floor to ^8.2 (or accept the mismatch)
-- **Added**: 2026-08-07 · Track P / P3 quality-baseline gating
+### 🔴 The declared first-party constraints resolve to nothing that exists
+
+- **Added**: 2026-08-08 · test-suite repair session, prompted by Ryan asking whether a stale taxon would cause rework
+- **Tier**: SOLO — a few lines in `composer.json`, but do it deliberately and re-run the gate
+- **Why deferred**: the suite must be green first; changing constraints mid-repair would muddy which
+  change caused which result
+- **Blocks**: any release, and any install outside this machine
+
+`composer.json` requires `robinsonryan/taxon: ^2.0|@dev` and `robinsonryan/vendor: ^1.2|@dev`.
+**Neither major version has ever been released.** Taxon's highest tag is `v0.3.0`; vendor's is
+`v0.1.1`. The `^2.0` and `^1.2` halves match nothing, ever — the package installs only because the
+`|@dev` half combines with the two path repositories pointing at the sibling working directories.
+A consumer without `../taxon` and `../vendor-pkg` on disk cannot resolve this package at all.
+
+Correct the constraints to the versions that exist (`^0.3.0`, `^0.1.1`). Note both dependencies are
+**0.x**, where semver permits breaking changes on a minor bump — a taxon 0.4 is a real event for
+this package, not a routine upgrade. Decide at the same time whether `|@dev` should stay: it is what
+makes local sibling development work, and also what has been masking this for as long as it has.
+
+Verified 2026-08-08: taxon's checkout is clean, on `master`, exactly at `v0.3.0` and in sync with
+origin — so this package is built against the newest taxon that exists. There is no upgrade pending
+and no rework owed. `vendor-pkg` is 3 commits ahead of `v0.1.1`, but all three touch only
+`.gitignore`, `QUEUE.md`, `composer.json` and `phpstan.neon` — no source, so no behavioural risk.
+
+### The Laravel 11 promise cannot be kept
+
+- **Added**: 2026-08-08 · same investigation
 - **Tier**: SOLO
-- **Why deferred**: taxon is a separate package on its own Track P slot; changing another package's constraints mid-gate is out of scope here
-- **Context**: this package now promises `php: ^8.2` (harness decision D-C) but requires `robinsonryan/taxon`, which still declares `php: ^8.3`. Composer resolves it today only because the local platform is 8.3 — a genuine 8.2 consumer would fail to install. Either lower taxon's floor to ^8.2 or record that laravel-inventory's ^8.2 promise is aspirational.
+- **Context**: this package declares `illuminate/*: ^11.0|^12.0|^13.0`. `robinsonryan/taxon` requires
+  `^12.0|^13.0`. There is no resolution in which a Laravel 11 host installs this package, so the
+  `^11.0` half is advertising a platform that cannot work. Either drop `^11.0` here, or widen taxon
+  to include it and prove it with a matrix run. Same family as the constraint item above; fix both
+  in one pass.
 
 ## Blocked
 
 ## Archive
+
+### ~~Raise `robinsonryan/taxon`'s php floor to ^8.2~~ — RESOLVED (verify before closing)
+- **Verified 2026-08-08**: `../taxon/composer.json` now declares `"php": "^8.2"`, matching this
+  package's promise. The mismatch this item describes no longer exists. Left here rather than
+  deleted so the queued entry above it is not read as still-live; delete on the next queue sweep.
 
 ### ~~DDEV project-name collision: `inventory`~~ — RESOLVED 2026-08-07
 - **Resolved by**: deleting the unrelated legacy app's DDEV registration and renaming its project to `inventory-legacy` in its own committed `.ddev/config.yaml` (`~/dev/sites/modern/inventory/main`, commit `f2b9110`). Ryan: that app is legacy — the thing it was built for is no longer being done.
