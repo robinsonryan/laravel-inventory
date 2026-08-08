@@ -10,11 +10,11 @@
     ],
     "require": {
         "php": "^8.2",
-        "illuminate/contracts": "^11.0|^12.0|^13.0",
-        "illuminate/database": "^11.0|^12.0|^13.0",
-        "illuminate/support": "^11.0|^12.0|^13.0",
-        "robinsonryan/taxon": "^2.0|@dev",
-        "robinsonryan/vendor": "^1.2|@dev"
+        "illuminate/contracts": "^12.0|^13.0",
+        "illuminate/database": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0",
+        "robinsonryan/taxon": "^0.3.0|@dev",
+        "robinsonryan/vendor": "^0.1.1|@dev"
     },
     "require-dev": {
         "larastan/larastan": "^3.0",

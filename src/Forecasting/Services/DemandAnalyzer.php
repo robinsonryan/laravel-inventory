@@ -127,8 +127,10 @@ final class DemandAnalyzer
 
     /**
      * Build a driver-appropriate SQL expression that buckets `created_at` into a
-     * period label. DATE_FORMAT() is MySQL-only; this package also runs on
-     * PostgreSQL (its own DDEV) and SQLite (the test suite).
+     * period label. DATE_FORMAT() is MySQL-only, and this package's own suite
+     * runs on PostgreSQL, so only the pgsql branch is proven; the sqlite and
+     * mysql branches are written but unexercised. The daily variant is the only
+     * one any test calls — weekly and monthly are unproven on every driver.
      *
      * @return literal-string
      */

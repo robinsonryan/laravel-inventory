@@ -33,8 +33,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   event and they call for opposite responses: no stock anywhere (reorder) versus enough stock in
   more than one place (consolidate). `availableQuantity` still means the sum across all locations.
 
+### Changed
+
+- **The test suite runs against real PostgreSQL** (the DDEV `db` service, on its own `testing`
+  database created by a `.ddev/config.yaml` post-start hook) instead of in-memory SQLite, matching
+  the stack convention. `INVENTORY_TEST_DB_HOST` / `_PORT` / `_DATABASE` / `_USERNAME` / `_PASSWORD`
+  override the connection. Migration directories are now registered with the migrator rather than
+  loaded through Testbench's `loadMigrationsFrom()`, which rebuilt the whole schema around every
+  test.
+
 ### Fixed
 
+- **The `locations` table could not be created on PostgreSQL.** `SchemaSupport::uuidPrimary()`
+  declared the primary key with the fluent `->primary()` column modifier, which Laravel converts to
+  a command only at compile time — after every foreign key the migration declared. `locations`
+  declares a self-referencing `parent_id` foreign key in the same `Schema::create()`, and PostgreSQL
+  refused it ("there is no unique constraint matching given keys for referenced table"). Now calls
+  `$table->primary($column)` explicitly so the key is emitted first. SQLite never surfaced this.
 - **`Stock::factory()`, `Location::factory()` and `Reservation::factory()` were unusable.** The
   three factories under `database/factories/Stock/` declared
   `RobinsonRyan\Inventory\Stock\Database\Factories`, which PSR-4 can never autoload from that path.
@@ -45,9 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`ReconciliationService::getCountsRequiringApproval()` passed `'pending'` into `withTag()`'s
   `?Scope` parameter.** Now uses `withTagIn($category, 'pending')`.
 - **`DemandAnalyzer::getConsumptionByPeriod()` emitted MySQL-only `DATE_FORMAT()` SQL** in a package
-  that runs on PostgreSQL and tests on SQLite. Replaced with a driver-aware expression
-  (`to_char` on pgsql, `strftime` on sqlite, `DATE_FORMAT` elsewhere). Only the sqlite branch is
-  covered by a test — see `QUEUE.md`.
+  that runs on PostgreSQL. Replaced with a driver-aware expression (`to_char` on pgsql, `strftime`
+  on sqlite, `DATE_FORMAT` elsewhere). Only the pgsql branch is covered by a test — see `QUEUE.md`.
 - **Every migration was unrunnable outside PostgreSQL 18.** All 20 table migrations defaulted their
   primary key to `DB::raw('uuidv7()')`, a PG18 built-in — so they failed on SQLite, on MySQL, and on
   the package's own PostgreSQL 17 container. The default is now applied only when the connection
@@ -113,12 +127,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`quantity` vs `quantity_received`). Receiving inspection — where an accepted count legitimately
   differs from a claimed one — is a feature, not these columns; see `QUEUE.md`.
 
+- **BREAKING: `config('inventory.tenant.enabled')` and `config('inventory.tenant.scoped')` are
+  gone.** Nothing in `src/` ever read either one, and the `scoped` map was wrong besides — it
+  listed `items` as global while the items table carries a tenant column and the model stamps it.
+  Setting `enabled => false` never disabled anything; it produced NOT NULL violations, because ten
+  tables declare `tenant_id NOT NULL`. Only `tenant.column` remains. A host application must bind a
+  `TenantResolver`; a single-tenant host binds one returning a constant.
+- **The package's position on tenancy is now stated rather than implied: it records tenant
+  ownership and does not enforce tenant isolation.** `BelongsToTenant`'s docblock claimed to add a
+  global scope for tenant filtering and never added one. It now says what it does. Reads are
+  unfiltered, and the reporting module queries tables directly. Hosts needing isolation have
+  `scopeForTenant()`, their own global scopes, or a database per tenant. This is a deliberate
+  decision, with the reasoning recorded in `CLAUDE.md` and the implementation shape in `QUEUE.md`.
+- **First-party requirements corrected to versions that exist**: `robinsonryan/taxon` `^2.0` →
+  `^0.3.0` and `robinsonryan/vendor` `^1.2` → `^0.1.1`, following the reversioning that took every
+  first-party package below 1.0. Neither major had ever been released, so both requirements matched
+  nothing and the package resolved only through the sibling path repositories.
+- **`illuminate/*` raised to `^12.0|^13.0`** (was `^11.0|^12.0|^13.0`). `robinsonryan/taxon`
+  requires `^12.0` minimum, so Laravel 11 support was a promise nothing could keep.
+
 ### Known issues
 
-- **Nothing in this package is tenant-scoped.** `BelongsToTenant` stamps `tenant_id` on create but
-  adds no query scope, so every report returns every tenant's rows and `getForJob()` can match
-  another tenant's reservations for a same-named work order. The package describes itself as
-  multi-tenant by default; it is not. Pre-existing and unchanged by this work — see `QUEUE.md`.
 - **Reservation writes are not concurrency-safe.** `reserve()` checks availability and then
   increments without locking the stock row, and `fulfill()` re-reads inside its transaction without
   `lockForUpdate`. Two simultaneous reservations can over-commit the same stock on PostgreSQL or

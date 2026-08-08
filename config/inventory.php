@@ -56,39 +56,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Multi-Tenancy Configuration
+    | Tenant Column
     |--------------------------------------------------------------------------
     |
-    | Configure how inventory relates to tenants in your application.
+    | Every tenant-aware table records which tenant owns each row, and the
+    | BelongsToTenant trait stamps this column on create from whatever
+    | TenantResolver the host application binds.
+    |
+    | This package does NOT enforce tenant isolation. It records ownership; it
+    | does not filter reads. There is no global scope, and the reports query
+    | tables directly. A host application that needs isolation must add it —
+    | through its own global scopes, a per-tenant database, or by passing the
+    | tenant through the `forTenant` scope the trait provides.
+    |
+    | Saying so plainly beats an `enabled` flag that nothing reads: this config
+    | previously advertised a tenancy switch and a per-table `scoped` map, and
+    | no code consulted either. The map was also wrong — it listed `items` as
+    | global while the items table carries a tenant column and the model stamps
+    | it. Both were removed rather than left as decoration. See QUEUE.md if you
+    | want real scoping; the schema is already shaped for it.
     |
     */
     'tenant' => [
-        'enabled' => true,
         'column' => 'tenant_id',
-        'scoped' => [
-            // Catalog is global by default
-            'items' => false,
-            'kits' => false,
-            'assemblies' => false,
-            'transformations' => false,
-            'item_substitutions' => false,
-
-            // Stock is per-tenant
-            'locations' => true,
-            'stock' => true,
-            'stock_movements' => true,
-            'reservations' => true,
-
-            // Purchasing is per-tenant
-            'purchase_orders' => true,
-            'receipts' => true,
-
-            // Reconciliation is per-tenant
-            'cycle_counts' => true,
-
-            // Forecasting is per-tenant
-            'reorder_recommendations' => true,
-        ],
     ],
 
     /*

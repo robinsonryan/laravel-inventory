@@ -14,8 +14,12 @@ Consequences for how this work runs:
 - All builders work in **one checkout** (`.claude/worktrees/repair`), not one worktree
   each — there are no intermediate commits to merge, so per-branch isolation buys nothing.
 - Conflict safety comes from **disjoint file ownership** (table below), strictly observed.
-- Concurrent test runs are safe: `tests/TestCase.php` gives every process its own
-  in-memory SQLite database. There is no shared test database to collide on.
+- ~~Concurrent test runs are safe: `tests/TestCase.php` gives every process its own
+  in-memory SQLite database. There is no shared test database to collide on.~~
+  **No longer true.** The suite now runs on the DDEV `db` service's single `testing`
+  database, and every process starts by dropping and rebuilding its schema. Two suite
+  runs at once will destroy each other's tables. Run one at a time, or give the second
+  its own database with `INVENTORY_TEST_DB_DATABASE`.
 - Markdown-only commits skip the gate, so this document can be committed as we go.
 
 Run tests from the **main checkout**, never by `cd`-ing into the worktree:

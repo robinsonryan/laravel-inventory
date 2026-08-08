@@ -416,6 +416,11 @@ final readonly class ReservationService implements ReservationContract
      * string, and `quantity - reserved_quantity` is an expression with no column
      * affinity, so on SQLite the comparison would otherwise be number-against-text —
      * which is always false, silently matching nothing. Do not drop the CAST.
+     *
+     * PostgreSQL resolves the untyped binding to numeric on its own, so this suite
+     * — which runs on PostgreSQL — would stay green without the cast. The cast is
+     * here for the host applications that run this package on SQLite, and nothing
+     * automated guards it. Treat it as load-bearing anyway.
      */
     private function findAvailableStock(string $itemId, float $quantity, ?string $locationId = null): ?Stock
     {

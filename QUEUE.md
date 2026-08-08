@@ -5,24 +5,36 @@
 
 ## Queued
 
-### 🔴 Nothing in this package is tenant-scoped
+### Tenant isolation, if a host ever needs it
 
-- **Added**: 2026-08-08 · test-suite repair · found independently by two reviewers
-- **Tier**: FULL — it is a data-isolation change touching every module
-- **Blocks**: any multi-tenant host. The package README describes it as "multi-tenant by default."
+- **Added**: 2026-08-08 · test-suite repair · found by two reviewers independently
+- **Tier**: FULL if taken on — a data-isolation change touching every module
+- **Status**: **deliberately deferred by Ryan, 2026-08-08.** Not a defect to be fixed on
+  sight — read the "Tenancy" section of `CLAUDE.md` before touching this.
 
-`src/Concerns/BelongsToTenant.php` stamps `tenant_id` on create and adds **no global query scope**.
-Consequences, both verified by grep rather than inferred:
+The package records tenant ownership and does not enforce isolation: `BelongsToTenant`
+stamps `tenant_id` on create and adds no read filter, so every report returns every
+tenant's rows and `ReservationService::getForJob()` matches on job class + id alone.
 
-- Every report returns every tenant's rows. There is not one tenant reference in `src/Reporting/`.
-- `ReservationService::getForJob()` matches on job class + job id alone, so tenant A cancelling a
-  work order releases tenant B's reservations for a work order with the same id.
-- `JobContract::getInventoryTenantId()` and `shouldHoldReservations()` are declared and **never
-  called anywhere in `src/`**.
+Deferred because there is no host application needing it, and because doing it later costs
+about the same: the expensive irreversible half — the column on ten tables, and every write
+filling it — is already done. What remains is additive.
 
-Invisible to the suite because every test runs as one fixed tenant. Overlaps the unread-config item
-below — resolve them together, and decide there whether tenancy is mandatory or optional before
-writing the scope.
+If it is ever taken on, the shape:
+
+- **Eloquent half, small**: a global scope in `BelongsToTenant`, plus a decision on what
+  happens when no tenant resolves. ~20 lines.
+- **Reporting half, the actual job**: all six reports build raw query-builder SQL against
+  physical tables with joins and subqueries. A global scope cannot reach any of it; every
+  table reference needs its own predicate, and a missed one leaks silently.
+- **Tests, the largest chunk**: today every test runs as one fixed tenant, so the suite
+  *cannot* detect a leak. Needs a second tenant in the fixtures plus isolation tests per
+  model and per report — roughly 25–30 tests.
+- Also unfinished: `JobContract::getInventoryTenantId()` and `shouldHoldReservations()` are
+  declared and never called anywhere in `src/`.
+
+Estimate: 2–3 focused days, most of it in the reporting code that the "Reporting reads five
+other modules' tables directly" item below wants replaced anyway. Sequence them.
 
 ### Reservation writes are not safe under concurrency
 
@@ -31,10 +43,12 @@ writing the scope.
 - **Context**: `reserve()` reads availability then increments with no `lockForUpdate`, and
   `fulfill()`/`partialFulfill()` re-read the stored row inside their transaction without locking it.
   Two concurrent reserves against the same stock both pass the check and over-commit the hold; two
-  concurrent fulfilments race. Invisible on SQLite (single writer), real on PostgreSQL and MySQL —
-  which is the deployment target. Direction: lock the stock row, or push the check into the update
-  itself (`UPDATE … WHERE quantity - reserved_quantity >= ?`), which also reuses the bound-parameter
-  cast lesson from the SQLite affinity bug.
+  concurrent fulfilments race. Real on PostgreSQL and MySQL — which is the deployment target. The
+  suite now runs on PostgreSQL, so a concurrency test is finally *possible* here, but every test
+  runs inside one `RefreshDatabase` transaction, so a second connection would need to be opened by
+  hand. Direction: lock the stock row, or push the check into the update itself
+  (`UPDATE … WHERE quantity - reserved_quantity >= ?`), which also reuses the bound-parameter cast
+  lesson from the SQLite affinity bug.
 
 ### A reservation cannot span locations, so spread stock is refused
 
@@ -107,20 +121,6 @@ writing the scope.
   arguably wrong. A broken test fixture used to probe this accidentally; nothing tests it now.
   Direction: divide by the shorter of the window and the item's actual history.
 
-### `config('inventory.tenant.enabled')` and `.scoped` are documented but read by nothing
-
-- **Added**: 2026-08-07 · Track P / P3 quality-baseline gating
-- **Tier**: LIGHT
-- **Context**: `config/inventory.php` advertises a tenancy switch and a per-table `scoped` map.
-  Grep says no code in `src/` reads either key. `BelongsToTenant` always tries to resolve a tenant,
-  and the tenant-scoped tables (`locations`, `stock`, `stock_movements`, `reservations`,
-  `reorder_recommendations`) declare `tenant_id` NOT NULL — so a single-tenant host that sets
-  `enabled => false` gets `NOT NULL constraint failed` on its first insert. Either honour the flag
-  (and relax those columns) or delete the flag and document that tenancy is mandatory.
-- **Gate note**: `tests/TestCase.php` previously set `enabled => false`, which is why 215 tests died
-  on `locations.tenant_id`. It now binds `tests/FixedTenantResolver.php` and runs tenancy ON — the
-  package's actual default — rather than routing around the schema.
-
 ### `inventory:generate-recommendations --tenant` is accepted, echoed, and ignored
 
 - **Added**: 2026-08-07 · Track P / P3 quality-baseline gating
@@ -148,12 +148,13 @@ writing the scope.
 
 - **Added**: 2026-08-07 · Track P / P3 quality-baseline gating
 - **Tier**: SOLO
-- **Context**: it built MySQL-only `DATE_FORMAT()` SQL in a package whose own DDEV is PostgreSQL and
-  whose suite runs SQLite; gating replaced it with a driver-aware expression
-  (`to_char` / `strftime` / `DATE_FORMAT`, see `DemandAnalyzer::periodExpression()`). The single
-  caller, `tests/Unit/Forecasting/DemandAnalyzerTest.php:45`, exercises only the `sqlite` branch —
-  **the pgsql and mysql branches are unverified**, and the weekly/monthly variants are untested
-  everywhere. Add cases per driver, or at minimum assert `periodExpression()`'s output per driver.
+- **Context**: it built MySQL-only `DATE_FORMAT()` SQL in a package whose own DDEV is PostgreSQL;
+  gating replaced it with a driver-aware expression (`to_char` / `strftime` / `DATE_FORMAT`, see
+  `DemandAnalyzer::periodExpression()`). Moving the suite to PostgreSQL flipped which branch is
+  proven: the single caller, `tests/Unit/Forecasting/DemandAnalyzerTest.php:45`, now exercises the
+  `pgsql` branch, and **the sqlite and mysql branches are unverified**. The weekly and monthly
+  variants remain untested on every driver. Add cases per driver, or at minimum assert
+  `periodExpression()`'s output per driver.
 
 ### Support Pest 5 / PHPUnit 13 / PHP 8.4+ in the constraint matrix
 - **Added**: 2026-08-07 · harness health & efficiency session — apps are queued to upgrade to Pest 5 for Tia; consuming apps can't move until this package allows it
@@ -198,6 +199,34 @@ and no rework owed. `vendor-pkg` is 3 commits ahead of `v0.1.1`, but all three t
 ## Blocked
 
 ## Archive
+
+### ~~`config('inventory.tenant.enabled')` and `.scoped` are read by nothing~~ — RESOLVED 2026-08-08
+- **Resolved by**: deleting both keys. Ryan's call: the package records tenant ownership and does
+  not enforce isolation, so a flag claiming to switch tenancy off was advertising behaviour that
+  never existed — setting it `false` produced NOT NULL violations, because ten tables declare
+  `tenant_id NOT NULL`. The `scoped` map was wrong as well as unread: it listed `items` as global
+  while the items table carries a tenant column and `Item` stamps it. Only `tenant.column` survives.
+  `BelongsToTenant`'s docblock — which claimed to add a global scope it never added — now describes
+  what it does. A tenant resolver is required; a single-tenant host binds one returning a constant.
+
+### ~~The declared first-party constraints resolve to nothing that exists~~ — RESOLVED 2026-08-08
+- **Resolved by**: `robinsonryan/taxon` `^2.0` → `^0.3.0`, `robinsonryan/vendor` `^1.2` → `^0.1.1`,
+  matching the reversioning that took every first-party package below 1.0. The `|@dev` alternative
+  stays — it is what makes sibling path-repository development resolve. `composer update --dry-run`
+  confirms both resolve cleanly.
+
+### ~~The Laravel 11 promise cannot be kept~~ — RESOLVED 2026-08-08
+- **Resolved by**: raising `illuminate/*` to `^12.0|^13.0`. `robinsonryan/taxon` requires `^12.0`
+  minimum, so the `^11.0` half could never have been satisfied.
+
+### ~~The suite runs on SQLite, not the deployment target~~ — RESOLVED 2026-08-08
+- **Resolved by**: moving to the real PostgreSQL 17 in DDEV's `db` service, matching `hey-you`
+  (the reference package) and the stack default. It immediately caught a bug that made the
+  `locations` table **uncreatable on PostgreSQL** — the primary key was declared with a fluent
+  modifier that Laravel emits after foreign keys, and `locations` has a self-referencing key.
+  Runtime 42 s → 67 s. Note the inversion: the `sqlite` and `mysql` branches of driver-aware code
+  are now the unproven ones, and two concurrent suite runs collide on the shared `testing` database
+  (`INVENTORY_TEST_DB_DATABASE` is the escape hatch).
 
 ### ~~The test suite is red: 134 of 480 tests fail~~ — RESOLVED 2026-08-08
 - **Resolved by**: branch `fix/test-suite-repair`. 527 passing, 1402 assertions, `composer quality`

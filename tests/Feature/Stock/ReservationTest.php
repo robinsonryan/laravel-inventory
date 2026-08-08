@@ -149,8 +149,10 @@ describe('ReservationService - Create Reservations', function (): void {
     });
 
     it('reserves a fractional quantity', function (): void {
-        // Guards the stock lookup's numeric comparison: a float binding arrives as
-        // text, and SQLite would match nothing at all if the cast were dropped.
+        // Covers the stock lookup's numeric comparison. Note it does not *guard*
+        // the CAST in findAvailableStock(): PostgreSQL, which this suite runs on,
+        // resolves the untyped binding to numeric by itself. SQLite is where the
+        // cast matters, and no test here runs on SQLite.
         $reservation = $this->reservationService->reserve(new ReservationData(
             itemId: $this->itemId,
             jobType: 'work_order',
