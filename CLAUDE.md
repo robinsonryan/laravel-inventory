@@ -361,9 +361,13 @@ There is no `ddev artisan` and no `ddev pest` here — those are app commands.
 
 ## Releases
 
-**Never tag.** Automation may update, gate, commit and push a branch, then report
-"ready to tag" with a suggested version. Ryan cuts every tag. A version number is
-a claim about behavior that a green gate cannot substantiate. This package is
+**Tag it yourself when it is releasable.** Cut the tag once the full gate is green
+on the merge commit, `CHANGELOG.md` names anything breaking in plain language, and
+the version follows caret-on-zero semver — on `0.x` a change that could break a
+consumer takes the minor, a fix takes the patch. Annotate it and push it with the
+merge. Stop and ask only when the gate is red, review findings are open, or the
+version choice is genuinely contested. Rule and reasoning: the laravel-package
+constitution §4. (Ruled 2026-08-18, replacing "Ryan cuts every tag".) This package is
 especially far from tag-worthy while the suite is red.
 
 Behavior changes land in `CHANGELOG.md` in the commit that makes them.
