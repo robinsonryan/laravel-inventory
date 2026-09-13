@@ -32,7 +32,7 @@ fields:
       list: { hidden: true }
   category:
     type: vocabulary
-    vocabulary: item_category
+    vocabulary: laravel-inventory::item_category
     default: part
   unit_of_measure:
     type: text
