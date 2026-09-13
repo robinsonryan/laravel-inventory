@@ -1,0 +1,18 @@
+format: pact/1
+vocabulary: item_category
+label: Category
+
+# Taxon-backed: the categories live in the `item-category` tag tree and an
+# administrator may add one at any time, so validation asks the definition
+# (Pact emits the registered `taxon_value` rule) rather than a hard-coded
+# `in:` list. The values below are what the definition seeds — what TypeScript
+# and JSON Schema know at emit time, widened by `open: true`.
+backed_by: taxon RobinsonRyan\Inventory\Catalog\TagDefinitions\ItemCategoryDefinition
+open: true
+values:
+  part:     Part
+  supply:   Supply
+  fluid:    Fluid
+  labor:    Labor
+  service:  Service
+  assembly: Assembly

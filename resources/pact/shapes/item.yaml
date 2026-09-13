@@ -1,0 +1,105 @@
+format: pact/1
+shape: item
+model: RobinsonRyan\Inventory\Catalog\Models\Item
+key: uuid7
+tenant: tenant_id
+timestamps: true
+
+label: Item
+label_plural: Items
+
+# The package ships this shape so an application with Pact installed gets the
+# item contract — validation per context, resource output, the catalogue's
+# query contract, TypeScript — without restating it. Applications extend it
+# (`extends: laravel-inventory::item`) and override; they never edit it.
+
+fields:
+  sku:
+    type: text
+    label: SKU
+    help: Your own code for this item. Must be unique.
+    rules: [max: 64, unique]
+    messages:
+      unique: This SKU is already in use.
+  name:
+    type: text
+    rules: [max: 255]
+  description:
+    type: textarea
+    nullable: true
+    contexts:
+      list: { hidden: true }
+  category:
+    type: vocabulary
+    vocabulary: item_category
+    default: part
+  unit_of_measure:
+    type: text
+    label: Unit of measure
+    help: How this item is counted — each, box, litre.
+    default: each
+    rules: [max: 32]
+
+  # `cost` and `price` are prices, and Pact's money type is integer minor units
+  # (spec D13) — but this package's columns are already `decimal(10, 4)`, four
+  # places, which minor units cannot express for a currency with two. Declaring
+  # them `decimal` keeps the shape honest about the column that exists rather
+  # than describing one that does not; the D13 tension is real and is resolved
+  # by a migration, not by a shape file. Until that migration exists, an
+  # application that needs money semantics overrides these two in its own shape.
+  cost:
+    type: decimal
+    nullable: true
+    args: { scale: 4 }
+    help: What you pay for one unit.
+  price:
+    type: decimal
+    nullable: true
+    args: { scale: 4 }
+    help: What you charge for one unit.
+
+  min_stock_level:
+    type: integer
+    nullable: true
+    label: Minimum stock level
+    rules: [min: 0]
+  max_stock_level:
+    type: integer
+    nullable: true
+    label: Maximum stock level
+    rules: [min: 0]
+  lead_time_days:
+    type: integer
+    nullable: true
+    label: Lead time
+    help: Days between ordering this item and receiving it.
+    rules: [min: 0]
+  weight:
+    type: decimal
+    nullable: true
+    args: { scale: 4 }
+  dimensions:
+    type: json
+    nullable: true
+    contexts:
+      list: { hidden: true }
+  is_serialized:
+    type: boolean
+    label: Tracked by serial number
+    default: false
+  is_active:
+    type: boolean
+    label: Active
+    default: true
+  metadata:
+    type: json
+    nullable: true
+    contexts:
+      list: { hidden: true }
+
+query:
+  filters: [sku, name, category, is_active]
+  sorts: [sku, name, created_at]
+  default_sort: sku
+  fields: true
+  per_page: { default: 25, max: 100 }

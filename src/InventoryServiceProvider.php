@@ -8,6 +8,8 @@ use Illuminate\Support\ServiceProvider;
 use RobinsonRyan\Inventory\Console\SyncTagValuesCommand;
 use RobinsonRyan\Inventory\Contracts\ReservationContract;
 use RobinsonRyan\Inventory\Stock\Services\ReservationService;
+use RobinsonRyan\Pact\Facades\Pact as PactFacade;
+use RobinsonRyan\Pact\Pact;
 
 final class InventoryServiceProvider extends ServiceProvider
 {
@@ -24,6 +26,28 @@ final class InventoryServiceProvider extends ServiceProvider
         $this->publishMigrations();
         $this->registerCommands();
         $this->registerEventListeners();
+        $this->registerShapes();
+    }
+
+    /**
+     * Hand the item shape and its category vocabulary to Pact when the
+     * application has Pact installed.
+     *
+     * Guarded rather than required: this package works without Pact, and an
+     * application that has both should not have to restate the item contract
+     * in a form request, a resource and a TypeScript interface.
+     *
+     * The path is the package's pact root, not its `shapes/` directory: Pact
+     * reads `shapes/`, `vocabularies/` and `groups/` beneath the path it is
+     * given (spec §5.1).
+     */
+    private function registerShapes(): void
+    {
+        if (! class_exists(Pact::class)) {
+            return;
+        }
+
+        PactFacade::shapesFrom(__DIR__.'/../resources/pact', 'laravel-inventory');
     }
 
     private function publishConfig(): void

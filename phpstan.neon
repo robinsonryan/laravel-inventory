@@ -7,4 +7,12 @@ parameters:
     level: 8
     phpVersion: 80200
     tmpDir: .phpstan.cache
-    ignoreErrors: []
+    ignoreErrors:
+        # Pact is an optional integration: the provider hands Pact the item
+        # shape when an application has Pact installed, guarded by
+        # class_exists(). Pact absent is the supported state here, not a
+        # missing symbol.
+        -
+            identifier: class.notFound
+            message: '#RobinsonRyan\\Pact#'
+            path: src/InventoryServiceProvider.php
