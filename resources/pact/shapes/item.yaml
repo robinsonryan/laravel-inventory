@@ -27,6 +27,7 @@ fields:
   description:
     type: textarea
     nullable: true
+    optional: true
     contexts:
       list: { hidden: true }
   category:
@@ -50,37 +51,44 @@ fields:
   cost:
     type: decimal
     nullable: true
+    optional: true
     args: { scale: 4 }
     help: What you pay for one unit.
   price:
     type: decimal
     nullable: true
+    optional: true
     args: { scale: 4 }
     help: What you charge for one unit.
 
   min_stock_level:
     type: integer
     nullable: true
+    optional: true
     label: Minimum stock level
     rules: [min: 0]
   max_stock_level:
     type: integer
     nullable: true
+    optional: true
     label: Maximum stock level
     rules: [min: 0]
   lead_time_days:
     type: integer
     nullable: true
+    optional: true
     label: Lead time
     help: Days between ordering this item and receiving it.
     rules: [min: 0]
   weight:
     type: decimal
     nullable: true
+    optional: true
     args: { scale: 4 }
   dimensions:
     type: json
     nullable: true
+    optional: true
     contexts:
       list: { hidden: true }
   is_serialized:
@@ -94,6 +102,7 @@ fields:
   metadata:
     type: json
     nullable: true
+    optional: true
     contexts:
       list: { hidden: true }
 
