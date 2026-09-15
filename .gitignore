@@ -21,3 +21,4 @@ composer.lock
 
 # DDEV-generated router certs/config (per-machine)
 .ddev/traefik/
+.workspace

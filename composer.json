@@ -1,7 +1,13 @@
 {
     "name": "robinsonryan/laravel-inventory",
     "description": "Full inventory management system for Laravel applications",
-    "keywords": ["laravel", "inventory", "stock", "purchasing", "warehouse"],
+    "keywords": [
+        "laravel",
+        "inventory",
+        "stock",
+        "purchasing",
+        "warehouse"
+    ],
     "license": "MIT",
     "authors": [
         {
@@ -13,8 +19,8 @@
         "illuminate/contracts": "^12.0|^13.0",
         "illuminate/database": "^12.0|^13.0",
         "illuminate/support": "^12.0|^13.0",
-        "robinsonryan/taxon": "^0.3.0|@dev",
-        "robinsonryan/vendor": "^0.1.1|@dev"
+        "robinsonryan/taxon": "^0.5.1|^0.6.0",
+        "robinsonryan/vendor": "^0.2.0"
     },
     "require-dev": {
         "larastan/larastan": "^3.0",
@@ -26,18 +32,12 @@
     },
     "repositories": [
         {
-            "type": "path",
-            "url": "../taxon",
-            "options": {
-                "symlink": true
-            }
+            "type": "vcs",
+            "url": "https://github.com/robinsonryan/taxon.git"
         },
         {
-            "type": "path",
-            "url": "../vendor-pkg",
-            "options": {
-                "symlink": true
-            }
+            "type": "vcs",
+            "url": "https://github.com/robinsonryan/vendor.git"
         }
     ],
     "autoload": {
@@ -64,7 +64,7 @@
             "pestphp/pest-plugin": true
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true,
     "scripts": {
         "test": "pest",

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-15
+
+### Changed
+
+- **BREAKING: PostgreSQL 18+ generates every primary key; the package no longer mints them in PHP.**
+  `HasUuid7` drops its `newUniqueId()` / `uniqueIds()` / `getIncrementing(): false` shape for the
+  canonical initializer (`$incrementing = true`, `$keyType = 'string'`), so Eloquent reads the
+  `uuidv7()` column default back through `INSERT ... RETURNING`. `TagValueInstaller` no longer
+  stamps ids on the tag rows it inserts either; Taxon's own column default covers them. The create
+  migrations already carried the default, so no upgrade migration is needed here — but a host on a
+  Postgres without `uuidv7()` now fails on its first insert instead of silently getting PHP keys
+- **BREAKING: `robinsonryan/taxon` is `^0.5.1|^0.6.0` and `robinsonryan/vendor` is `^0.2.0`**, both
+  consumed by tag from GitHub (`vcs` repositories) instead of local `path` repositories. The DDEV
+  mount that served the path repositories (`.ddev/docker-compose.deps.yaml`) is gone
+
 ### Added
 
 - `RobinsonRyan\Inventory\Exceptions\CannotReserveException` — the refusal `reserve()` raises,

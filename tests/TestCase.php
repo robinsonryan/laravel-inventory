@@ -39,7 +39,7 @@ abstract class TestCase extends Orchestra
      */
     private function dependencyMigrationPath(string $package): string
     {
-        $path = dirname(__DIR__).'/vendor/robinsonryan/'.$package.'/database/migrations';
+        $path = __DIR__.'/../vendor/robinsonryan/'.$package.'/database/migrations';
 
         if (! is_dir($path)) {
             throw new RuntimeException(
@@ -107,7 +107,7 @@ abstract class TestCase extends Orchestra
         $paths = [
             $this->dependencyMigrationPath('taxon'),
             $this->dependencyMigrationPath('vendor'),
-            dirname(__DIR__).'/database/migrations',
+            __DIR__.'/../database/migrations',
         ];
 
         $app->afterResolving('migrator', static function (Migrator $migrator) use ($paths): void {

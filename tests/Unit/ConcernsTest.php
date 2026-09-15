@@ -2,44 +2,31 @@
 
 declare(strict_types=1);
 
+use RobinsonRyan\Inventory\Catalog\Models\Item;
 use RobinsonRyan\Inventory\Concerns\HasImmutableAuditTrail;
-use RobinsonRyan\Inventory\Concerns\HasUuid7;
 
 describe('HasUuid7', function (): void {
-    it('generates uuid7 format ids', function (): void {
-        // Test the newUniqueId method from the trait
-        $trait = new class
-        {
-            use HasUuid7;
+    it('lets PostgreSQL generate the key and hydrates it back onto the model', function (): void {
+        $item = Item::factory()->create();
 
-            public function generate(): string
-            {
-                return $this->newUniqueId();
-            }
-        };
-
-        $id = $trait->generate();
-
-        // UUID7 format: 8-4-4-4-12 characters
-        expect($id)->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i');
+        // Version nibble 7 and variant nibble 8-b: a UUID7 the database made,
+        // not a UUID4 or anything PHP minted.
+        expect($item->id)->toBeString()
+            ->and($item->id)->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i')
+            ->and($item->getIncrementing())->toBeTrue()
+            ->and($item->getKeyType())->toBe('string');
     });
 
-    it('returns string key type', function (): void {
-        $trait = new class
-        {
-            use HasUuid7;
-        };
+    it('does not set the key before the insert', function (): void {
+        $seen = 'unset';
 
-        expect($trait->getKeyType())->toBe('string');
-    });
+        Item::creating(function (Item $model) use (&$seen): void {
+            $seen = $model->getKey();
+        });
 
-    it('does not use incrementing', function (): void {
-        $trait = new class
-        {
-            use HasUuid7;
-        };
+        Item::factory()->create();
 
-        expect($trait->getIncrementing())->toBeFalse();
+        expect($seen)->toBeNull();
     });
 });
 

@@ -140,10 +140,6 @@ final class TagValueInstaller
                     'updated_at' => $now,
                 ];
 
-                if (! $parent->getIncrementing()) {
-                    $row['id'] = Str::uuid7()->toString();
-                }
-
                 $rows[] = $row;
             }
 
