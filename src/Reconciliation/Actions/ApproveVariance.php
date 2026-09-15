@@ -75,21 +75,18 @@ final readonly class ApproveVariance
         /** @var Stock|null */
         $stock = $line->stock;
 
-        if ($stock === null) {
-            /** @var Stock */
-            $stock = $this->getStockModel()::query()->firstOrCreate(
-                [
-                    'item_id' => $line->item_id,
-                    'location_id' => $line->location_id,
-                    'lot_number' => $line->lot_number,
-                    'serial_number' => $line->serial_number,
-                ],
-                [
-                    'quantity' => 0,
-                    'reserved_quantity' => 0,
-                ],
-            );
-        }
+        $stock ??= $this->getStockModel()::query()->firstOrCreate(
+            [
+                'item_id' => $line->item_id,
+                'location_id' => $line->location_id,
+                'lot_number' => $line->lot_number,
+                'serial_number' => $line->serial_number,
+            ],
+            [
+                'quantity' => 0,
+                'reserved_quantity' => 0,
+            ],
+        );
 
         $quantityBefore = (float) $stock->quantity;
         $quantityAfter = (float) $line->counted_quantity;

@@ -5,10 +5,20 @@ declare(strict_types=1);
 namespace RobinsonRyan\Inventory\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
-use Symfony\Component\Uid\Uuid;
 
 /**
- * Trait for models using UUID7 primary keys.
+ * Configures model primary key settings for UUID7 identifiers.
+ *
+ * The database (PostgreSQL 18+) generates UUID7 values via its native uuidv7()
+ * function as the column default — Laravel never generates them.
+ *
+ * `$keyType = 'string'` tells Eloquent the key is a UUID rather than an integer.
+ * `$incrementing = true` does NOT mean "auto-increment"; in Eloquent it means
+ * "the database assigns the key on insert", which is exactly what a uuidv7()
+ * column default does. It makes Eloquent use `insertGetId()`, so the INSERT is
+ * compiled with PostgreSQL's `returning "id"` clause and the generated UUID is
+ * hydrated back onto the model. Without it the model would come back from
+ * `create()` with a null key.
  *
  * @mixin Model
  */
@@ -16,29 +26,7 @@ trait HasUuid7
 {
     public function initializeHasUuid7(): void
     {
-        $this->usesUniqueIds = true;
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    public function uniqueIds(): array
-    {
-        return [$this->getKeyName()];
-    }
-
-    public function newUniqueId(): string
-    {
-        return (string) Uuid::v7();
-    }
-
-    public function getIncrementing(): bool
-    {
-        return false;
-    }
-
-    public function getKeyType(): string
-    {
-        return 'string';
+        $this->incrementing = true;
+        $this->keyType = 'string';
     }
 }

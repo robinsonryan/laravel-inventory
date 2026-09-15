@@ -212,9 +212,11 @@ until you know why.
   intended design, and it was being run on the one container that could not provide
   it. DDEV is now on 18 and the default is applied for real — verified in
   `information_schema`, and that branch of the code had **never executed** before.
-  `SchemaSupport::uuidPrimary($table)` keeps the `pg_proc` probe, which is still
-  correct for a library: a host on Postgres 16 or MySQL gets PHP-side keys from the
-  `HasUuid7` trait instead. **Never write `uuidv7()` into a migration directly** —
+  `SchemaSupport::uuidPrimary($table)` keeps the `pg_proc` probe so the migration
+  compiles on a driver without the function, but since 0.3.0 nothing mints a key in
+  PHP: `HasUuid7` only sets `$incrementing = true` / `$keyType = 'string'`, so a
+  host without `uuidv7()` gets a not-null violation on its first insert. PostgreSQL
+  18 is a requirement, not a preference. **Never write `uuidv7()` into a migration directly** —
   go through the helper, which also emits the key *before* any foreign key (see
   below).
   **If a migration fails on `uuidv7()`, check the Postgres version before assuming
