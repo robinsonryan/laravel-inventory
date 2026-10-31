@@ -28,11 +28,31 @@ final class TableResolver
      */
     public static function resolve(string $key, string $default): string
     {
-        $name = config("inventory.tables.{$key}", $default);
+        return self::validated("inventory.tables.{$key}", $default);
+    }
+
+    /**
+     * The same, for a table `robinsonryan/vendor` owns.
+     *
+     * @param  literal-string  $default
+     * @return literal-string
+     */
+    public static function vendor(string $key, string $default): string
+    {
+        return self::validated("vendor.tables.{$key}", $default);
+    }
+
+    /**
+     * @param  literal-string  $default
+     * @return literal-string
+     */
+    private static function validated(string $configKey, string $default): string
+    {
+        $name = config($configKey, $default);
 
         if (! is_string($name) || preg_match(self::IDENTIFIER_PATTERN, $name) !== 1) {
             throw new InvalidArgumentException(
-                "Configured table name for inventory.tables.{$key} is not a valid SQL identifier.",
+                "Configured table name for {$configKey} is not a valid SQL identifier.",
             );
         }
 

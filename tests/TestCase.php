@@ -7,6 +7,7 @@ namespace RobinsonRyan\Inventory\Tests;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Orchestra\Testbench\TestCase as Orchestra;
+use RobinsonRyan\HeyYou\HeyYouServiceProvider;
 use RobinsonRyan\Inventory\Contracts\TenantResolver;
 use RobinsonRyan\Inventory\InventoryServiceProvider;
 use RobinsonRyan\Taxon\TaxonServiceProvider;
@@ -25,6 +26,9 @@ abstract class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
+            // Creating a vendor writes a hey-you party, and the provider brings
+            // hey-you's migrations along by loading them itself.
+            HeyYouServiceProvider::class,
             TaxonServiceProvider::class,
             VendorServiceProvider::class,
             InventoryServiceProvider::class,

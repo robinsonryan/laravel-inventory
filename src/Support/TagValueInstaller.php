@@ -8,6 +8,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RobinsonRyan\Inventory\Catalog\TagDefinitions\ItemCategoryDefinition;
+use RobinsonRyan\Inventory\Matching\TagDefinitions\PartCategoryDefinition;
+use RobinsonRyan\Inventory\Matching\TagDefinitions\PartFitmentDefinition;
 use RobinsonRyan\Inventory\Purchasing\TagDefinitions\PurchaseOrderStatusDefinition;
 use RobinsonRyan\Inventory\Reconciliation\TagDefinitions\CycleCountStatusDefinition;
 use RobinsonRyan\Inventory\Stock\TagDefinitions\LocationTypeDefinition;
@@ -44,6 +46,8 @@ final class TagValueInstaller
         ReservationStatusDefinition::class,
         PurchaseOrderStatusDefinition::class,
         CycleCountStatusDefinition::class,
+        PartCategoryDefinition::class,
+        PartFitmentDefinition::class,
     ];
 
     /**
@@ -156,16 +160,17 @@ final class TagValueInstaller
     /**
      * The wording a person sees for a value.
      *
-     * `Str::headline()` reads well for all but one of the values this package
+     * `Str::headline()` reads well for all but two of the values this package
      * declares, so the derived name is the default and the map holds only the
-     * exceptions — today, the one acronym, which headline renders as an ordinary
-     * word ("Wip"). Slugs are unique across the six definitions, so one flat map
-     * is enough; key it by definition as well if that ever stops being true.
+     * exceptions — today, the two acronyms, which headline renders as ordinary
+     * words ("Wip", "Gm"). Slugs are unique across the definitions, so one flat
+     * map is enough; key it by definition as well if that ever stops being true.
      */
     private static function displayName(string $slug): string
     {
         $names = [
             'wip' => 'WIP',
+            'gm' => 'GM',
         ];
 
         return $names[$slug] ?? Str::headline($slug);

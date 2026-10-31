@@ -328,7 +328,8 @@ which is worse than a red one.
 
 `tests/TestCase.php` also fixes the shape of every test run:
 
-- Providers loaded: taxon, vendor, inventory.
+- Providers loaded: hey-you, taxon, vendor, inventory. Creating a vendor writes a
+  hey-you party, and hey-you's provider loads its own migrations.
 - Migration directories are **registered with the migrator**, not loaded through
   Testbench's `loadMigrationsFrom()`. That helper migrates and rolls back around
   every single test, which on a real database means rebuilding thirty tables 527

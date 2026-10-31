@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Part matching.** New `RobinsonRyan\Inventory\Matching` module linking a vendor's part number
+  to AFWD's own part. `part_matches` holds proposed, confirmed and vetoed links, and two partial
+  unique indexes make the database refuse a second confirmed match for a vendor item, or a second
+  open proposal for one pairing. `ProposeMatch`, `ConfirmMatch` and `RejectMatch` own the state:
+  no actor means by rule, a rejection deletes nothing, a rejected pairing stays rejected across
+  re-posts, only a person can reinstate it or swap a confirmed part, and an inactive part is
+  refused. `PartMatch::scopeNeedsReview()` is the review queue. Refusals raise
+  `CannotConfirmMatchException`
+- `CreatePartFromVendorItem` makes a part numbered `P-######` from the new `part_sku_seq` Postgres
+  sequence, stepping past any sku already taken
+- **Fitment and part category.** `PartFitmentDefinition` (`part-fitment`: Ford, GM, Nissan,
+  multi-valued) and `PartCategoryDefinition` (`part-category`, a tree through taxon's `parent_id`),
+  separate from the flat `item-category`. `part_classifications` carries their proposed, confirmed
+  and vetoed state and is the history of what a part used to be; only a confirmed row becomes a
+  tag. `ProposeClassification`, `ConfirmClassification` and `RejectClassification` own it: a new
+  category never confirms by rule, a confirmed category replaces the last one, and the rule cannot
+  replace a person's choice. Refusals raise `CannotClassifyException`
+- `Item` gains `partCategory`, `fitment`, `partCategoryTag()`, `fitmentValues()`, `fitsAllMakes()`
+  and `scopeWithFitment()`
+- `ManageCategories`: create, rename, move and merge. A merge moves parts and classification rows,
+  moves children under the survivor, merges children whose names collide, and returns how many
+  parts moved, all in one transaction. Refusals raise `CannotManageCategoryException`
+- `PartCategoryInstaller::seed()` and `config('inventory.part_categories')`, the starting tree. The
+  host seeds it from its own migration; nothing here does
+- **`part_price_history`**, a view with one row per stock line, excluding credit memos. `item_id`
+  comes from the confirmed match only, so rejecting a match takes the lines off the part and leaves
+  them on the vendor item. `PartPriceHistory` is its read-only model
+- `TableResolver::vendor()`, validating a `robinsonryan/vendor` table name for raw SQL
+
+### Changed
+
+- **BREAKING: `robinsonryan/vendor` is `^0.3.0`, and `robinsonryan/taxon` is `^0.6.0`.** Vendor 0.3
+  brings `robinsonryan/hey-you`, which a consumer has to list as a `vcs` repository too, and
+  requires taxon 0.6 in any case. A consuming application's test case needs
+  `HeyYouServiceProvider` registered, because creating a vendor now writes a party
+- `Item::$tagAttributes` gains `partCategory` and `fitment`. `category` is unchanged
+
 ## [0.3.0] - 2026-09-15
 
 ### Changed
