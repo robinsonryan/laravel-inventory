@@ -41,6 +41,11 @@ return [
 
         // Forecasting module
         'reorder_recommendations' => 'reorder_recommendations',
+
+        // Matching module
+        'part_matches' => 'part_matches',
+        'part_classifications' => 'part_classifications',
+        'part_price_history' => 'part_price_history',
     ],
 
     /*
@@ -124,6 +129,33 @@ return [
         'allow_negative_stock' => false,
         'reservation_expiry_hours' => 72,
         'movement_immutable' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Starting Part Categories
+    |--------------------------------------------------------------------------
+    |
+    | The parts tree a host starts from: a name, or a name with its children.
+    | Nothing reads this on its own. A host passes it to
+    | PartCategoryInstaller::seed() from a migration of its own, and from then on
+    | the tree lives in the database and is reorganised with ManageCategories.
+    |
+    */
+    'part_categories' => [
+        'Wheels',
+        'Tires',
+        'Accessories' => ['Bumpers', 'Steps', 'Lights', 'Roof racks', 'Winches', 'Awnings'],
+        'Suspension',
+        'Axles & differentials',
+        'Transfer cases',
+        'Drivelines',
+        'Steering',
+        'Brakes',
+        'Electrical',
+        'Hardware & fasteners',
+        'Fluids',
+        'Shop consumables' => ['Welding wire', 'Welding gas', 'Abrasives', 'Paint'],
     ],
 
     /*

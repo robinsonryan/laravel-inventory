@@ -19,8 +19,8 @@
         "illuminate/contracts": "^12.0|^13.0",
         "illuminate/database": "^12.0|^13.0",
         "illuminate/support": "^12.0|^13.0",
-        "robinsonryan/taxon": "^0.5.1|^0.6.0",
-        "robinsonryan/vendor": "^0.2.0"
+        "robinsonryan/taxon": "^0.6.0",
+        "robinsonryan/vendor": "^0.3.0"
     },
     "require-dev": {
         "larastan/larastan": "^3.0",
@@ -31,6 +31,10 @@
         "rector/rector": "^2.0"
     },
     "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/robinsonryan/hey-you.git"
+        },
         {
             "type": "vcs",
             "url": "https://github.com/robinsonryan/taxon.git"
