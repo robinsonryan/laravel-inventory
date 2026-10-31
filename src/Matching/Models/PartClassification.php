@@ -117,11 +117,15 @@ final class PartClassification extends Model
     /**
      * Whether this row already speaks for a value, however it was spelled and
      * whether or not its category has come to exist since.
+     *
+     * Two tags settle it, because a row keeps the name it was proposed under after
+     * it resolves, and another category can come to share that name. The name is
+     * for when one side has no tag.
      */
     public function isFor(?Tag $tag, string $value): bool
     {
-        if ($tag instanceof Tag && $this->tag_id === $tag->getKey()) {
-            return true;
+        if ($tag instanceof Tag && $this->tag_id !== null) {
+            return $this->tag_id === $tag->getKey();
         }
 
         return $this->proposed_value !== null && Str::slug($this->proposed_value) === Str::slug($value);

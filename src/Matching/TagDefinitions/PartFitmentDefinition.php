@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace RobinsonRyan\Inventory\Matching\TagDefinitions;
 
 use Illuminate\Support\Str;
+use RobinsonRyan\Taxon\Models\Tag;
 use RobinsonRyan\Taxon\TagDefinition;
 
 /**
- * Which makes a part fits. Multi-valued, so it is written with `addTagAs()` and
- * `removeTag()`: assigning `$item->fitment` goes through `setTagAs()`, which
- * clears every other make first.
+ * Which makes a part fits. Multi-valued, and written only by the classification
+ * actions through `addTagAs()` and `removeTag()`. Item refuses `$item->fitment = x`,
+ * which would go through `setTagAs()` and clear every other make first.
  */
 final class PartFitmentDefinition extends TagDefinition
 {
@@ -49,5 +50,10 @@ final class PartFitmentDefinition extends TagDefinition
         $slug = self::ALIASES[$slug] ?? $slug;
 
         return in_array($slug, self::DEFAULT_VALUES, true) ? $slug : null;
+    }
+
+    public static function contains(Tag $tag): bool
+    {
+        return $tag->parent_id === self::tag()->getKey();
     }
 }

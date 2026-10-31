@@ -14,6 +14,7 @@ use RobinsonRyan\Inventory\Catalog\TagDefinitions\ItemCategoryDefinition;
 use RobinsonRyan\Inventory\Concerns\BelongsToTenant;
 use RobinsonRyan\Inventory\Concerns\HasUuid7;
 use RobinsonRyan\Inventory\Database\Factories\Catalog\ItemFactory;
+use RobinsonRyan\Inventory\Exceptions\CannotClassifyException;
 use RobinsonRyan\Inventory\Matching\TagDefinitions\PartCategoryDefinition;
 use RobinsonRyan\Inventory\Matching\TagDefinitions\PartFitmentDefinition;
 use RobinsonRyan\Taxon\HasTags;
@@ -57,8 +58,15 @@ final class Item extends Model
 
     use HasTags {
         getTagAttributeValue as getDeclaredTagAttributeValue;
+        setAttribute as protected setTaxonAttribute;
     }
     use HasUuid7;
+
+    /**
+     * Readable like any tag attribute, but written only by the classification
+     * actions, because `part_classifications` is the record of these two.
+     */
+    private const CLASSIFIED_ATTRIBUTES = ['partCategory', 'fitment'];
 
     /** @var array<string, class-string> */
     protected array $tagAttributes = [
@@ -214,6 +222,27 @@ final class Item extends Model
     public function scopeWithFitment(Builder $query, string|array $makes): Builder
     {
         return $query->withAnyTagIn(PartFitmentDefinition::$slug, (array) $makes);
+    }
+
+    /**
+     * Taxon would take `$item->fitment = 'ford'` as setTagAs(): every other make
+     * gone, their confirmed rows left standing and no row for the new one. It has
+     * to be refused here and not at the tag write, which waits for the save on an
+     * unsaved part and so would fail after the insert.
+     *
+     * @param  string  $key
+     * @param  mixed  $value
+     * @return mixed
+     *
+     * @throws CannotClassifyException
+     */
+    public function setAttribute($key, $value)
+    {
+        if (in_array($key, self::CLASSIFIED_ATTRIBUTES, true)) {
+            throw CannotClassifyException::classifiedAttribute($key);
+        }
+
+        return $this->setTaxonAttribute($key, $value);
     }
 
     /**

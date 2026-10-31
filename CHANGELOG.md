@@ -26,6 +26,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A vendor item no longer queues twice for a new-part suggestion and a part suggestion in either
   order: the new-part suggestion waits behind the open part and comes forward if the part is
   rejected. Rival parts still queue one by one
+- `ProposeClassification` and `ConfirmClassification` refuse a tag that does not belong to the axis,
+  so a tag from outside the parts tree can no longer become a part's category
+  (`ClassificationAxis::assertHolds()`, `PartFitmentDefinition::contains()`)
+- Confirming a category name two branches share raises `CannotClassifyException::ambiguousCategory()`
+  instead of creating a third category, for a person as well as the rule.
+  `isAmbiguousCategory()` tells a surface to ask which and resend the choice as a tag, and
+  `PartCategoryDefinition::named()` returns the candidates
+- A classification's retained proposal name no longer overrides an explicit pick of a different tag
+  with the same name: `PartClassification::isFor()` compares tags whenever both sides have one
+- `$item->fitment = x` and `$item->partCategory = x` now raise `CannotClassifyException`, as does any
+  other route through `setAttribute()`, including on an unsaved item. Assigning fitment used to wipe
+  the other makes and leave their confirmed rows standing. Reading both attributes is unchanged
 
 ## [0.4.0] - 2026-10-31
 

@@ -30,7 +30,7 @@ final class ProposeClassification
      * @param  array{method?: MatchMethod, note?: string, tag?: Tag}  $context  `tag` names the category
      *                                                                          outright, for a person who picked it
      *
-     * @throws CannotClassifyException when the value is not a make a part can fit
+     * @throws CannotClassifyException when the value is not a make a part can fit, or `tag` is not on this axis
      */
     public function execute(
         Item $item,
@@ -43,6 +43,10 @@ final class ProposeClassification
             PartClassification::lockItem($item->id);
 
             $tag = $context['tag'] ?? $this->tagFor($axis, $value);
+
+            if ($tag instanceof Tag) {
+                $axis->assertHolds($tag);
+            }
 
             $rows = PartClassification::query()
                 ->where('item_id', $item->id)

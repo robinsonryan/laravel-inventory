@@ -73,17 +73,27 @@ final readonly class ConfirmClassification
     }
 
     /**
-     * The category may have come to exist since it was proposed, so a name is
-     * looked up again before it is treated as new.
+     * The tree can change after a proposal, so a tag is checked again, and a name
+     * is looked up again before it is treated as new. A name two categories share
+     * is not new, it is unanswered, so even a person gets asked which.
      */
     private function tagFor(PartClassification $classification, ?Model $actor): Tag
     {
         if ($classification->tag_id !== null) {
-            return Tag::query()->findOrFail($classification->tag_id);
+            $tag = Tag::query()->findOrFail($classification->tag_id);
+            $classification->axis->assertHolds($tag);
+
+            return $tag;
         }
 
         $name = (string) $classification->proposed_value;
-        $tag = PartCategoryDefinition::findByName($name);
+        $named = PartCategoryDefinition::named($name);
+
+        if ($named->count() > 1) {
+            throw CannotClassifyException::ambiguousCategory($name);
+        }
+
+        $tag = $named->first();
 
         if ($tag instanceof Tag) {
             return $tag;

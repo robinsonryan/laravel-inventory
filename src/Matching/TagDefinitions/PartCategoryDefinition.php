@@ -45,12 +45,23 @@ final class PartCategoryDefinition extends TagDefinition
     }
 
     /**
+     * Every category with this name. More than one means branches share it.
+     *
+     * @return Collection<int, Tag>
+     */
+    public static function named(string $name): Collection
+    {
+        return self::tree()->where('slug', Str::slug($name))->values();
+    }
+
+    /**
      * The category with this name, at any depth. Null when there is none, and
      * when two branches share the name, since then the name does not say which.
+     * named() tells those two apart.
      */
     public static function findByName(string $name): ?Tag
     {
-        $found = self::tree()->where('slug', Str::slug($name));
+        $found = self::named($name);
 
         return $found->count() === 1 ? $found->first() : null;
     }

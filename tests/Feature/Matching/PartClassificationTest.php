@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use RobinsonRyan\Inventory\Catalog\Models\Item;
+use RobinsonRyan\Inventory\Catalog\TagDefinitions\ItemCategoryDefinition;
 use RobinsonRyan\Inventory\Exceptions\CannotClassifyException;
 use RobinsonRyan\Inventory\Matching\Actions\ConfirmClassification;
 use RobinsonRyan\Inventory\Matching\Actions\ManageCategories;
@@ -138,6 +139,18 @@ describe('fitment', function (): void {
 
         expect($this->part->fitment)->toBe(['gm']);
     })->with(['GM', 'gm', 'Chevrolet', 'Chevy', 'chevy', 'GMC']);
+
+    it('refuses a tag that is not one of the makes', function (): void {
+        expect(fn () => $this->propose->execute(
+            $this->part,
+            ClassificationAxis::Fitment,
+            'Ford',
+            1.0,
+            ['tag' => $this->brakes],
+        ))->toThrow(CannotClassifyException::class, 'not a make');
+
+        expect(PartClassification::query()->exists())->toBeFalse();
+    });
 
     it('refuses a make outside the list', function (): void {
         expect(fn () => $this->propose->execute($this->part, ClassificationAxis::Fitment, 'Tractor', 0.9))
@@ -385,6 +398,127 @@ describe('category', function (): void {
 
         expect($classification->refresh()->status)->toBe(MatchStatus::Confirmed)
             ->and($this->part->partCategory)->toBe('bumpers');
+    });
+
+    it('refuses a tag from outside the parts tree', function (Closure $outside): void {
+        expect(fn () => $this->propose->execute(
+            $this->part,
+            ClassificationAxis::Category,
+            'Whatever',
+            1.0,
+            ['tag' => $outside(), 'method' => MatchMethod::Person],
+        ))->toThrow(CannotClassifyException::class, 'not a part category');
+
+        expect(PartClassification::query()->exists())->toBeFalse();
+    })->with([
+        'a fitment value' => [fn (): Tag => PartFitmentDefinition::valueTag('ford')],
+        'the flat item category' => [fn (): Tag => ItemCategoryDefinition::valueTag('part')],
+        'the root of the tree' => [PartCategoryDefinition::tag(...)],
+    ]);
+
+    it('refuses to confirm a row holding a tag from outside the tree, leaving the part as it was', function (): void {
+        $part = Item::factory()->part()->create();
+        $row = PartClassification::factory()->create([
+            'item_id' => $part->id,
+            'axis' => ClassificationAxis::Category,
+            'tag_id' => ItemCategoryDefinition::valueTag('part')->getKey(),
+        ]);
+
+        expect(fn () => $this->confirm->execute($row, $this->person))
+            ->toThrow(CannotClassifyException::class, 'not a part category');
+
+        expect($row->refresh()->status)->toBe(MatchStatus::Proposed)
+            ->and($part->category)->toBe('part')
+            ->and($part->partCategory)->toBeNull();
+    });
+
+    it('asks which rather than creating a third when two categories share the name', function (?object $actor): void {
+        $this->categories->create('Paint', $this->axles);
+        $this->categories->create('Paint', $this->accessories);
+        $proposal = $this->propose->execute($this->part, ClassificationAxis::Category, 'Paint', 0.9);
+
+        expect(fn () => $this->confirm->execute($proposal, $actor))
+            ->toThrow(CannotClassifyException::class, 'more than one');
+
+        expect($proposal->refresh()->status)->toBe(MatchStatus::Proposed)
+            ->and(PartCategoryDefinition::tree()->where('slug', 'paint'))->toHaveCount(2);
+    })->with([
+        'by rule' => [null],
+        'by a person' => [TestActor::named()],
+    ]);
+
+    it('marks the ambiguous refusal so a surface can ask for a tag', function (): void {
+        $this->categories->create('Paint', $this->axles);
+        $this->categories->create('Paint', $this->accessories);
+        $proposal = $this->propose->execute($this->part, ClassificationAxis::Category, 'Paint', 0.9);
+
+        try {
+            $this->confirm->execute($proposal, $this->person);
+            $this->fail('The ambiguous name was confirmed.');
+        } catch (CannotClassifyException $exception) {
+            expect($exception->isAmbiguousCategory())->toBeTrue();
+        }
+
+        expect(CannotClassifyException::newCategoryNeedsReview('Paint')->isAmbiguousCategory())->toBeFalse();
+    });
+
+    it('confirms the ambiguous name once a person says which', function (): void {
+        $this->categories->create('Paint', $this->axles);
+        $bodyPaint = $this->categories->create('Paint', $this->accessories);
+        $this->propose->execute($this->part, ClassificationAxis::Category, 'Paint', 0.9);
+
+        $this->confirm->execute(
+            $this->propose->execute(
+                $this->part,
+                ClassificationAxis::Category,
+                'Paint',
+                1.0,
+                ['tag' => $bodyPaint, 'method' => MatchMethod::Person],
+            ),
+            $this->person,
+        );
+
+        expect($this->part->partCategoryTag()?->is($bodyPaint))->toBeTrue()
+            ->and(PartCategoryDefinition::tree()->where('slug', 'paint'))->toHaveCount(2);
+    });
+
+    it('lets a person pick a same-named category over the one a retained name points at', function (): void {
+        $old = $this->confirm->execute(
+            $this->propose->execute($this->part, ClassificationAxis::Category, 'Running boards', 0.6),
+            $this->person,
+        );
+        $elsewhere = $this->categories->create('Running boards', $this->accessories);
+
+        $picked = $this->propose->execute(
+            $this->part,
+            ClassificationAxis::Category,
+            'Running boards',
+            1.0,
+            ['tag' => $elsewhere, 'method' => MatchMethod::Person],
+        );
+
+        expect($picked->id)->not->toBe($old->id)
+            ->and($picked->status)->toBe(MatchStatus::Proposed)
+            ->and($picked->tag_id)->toBe($elsewhere->getKey());
+
+        $this->confirm->execute($picked, $this->person);
+
+        expect($old->refresh()->status)->toBe(MatchStatus::Vetoed)
+            ->and($old->replaced_by_id)->toBe($picked->id)
+            ->and($this->part->partCategoryTag()?->is($elsewhere))->toBeTrue();
+    });
+
+    it('still takes an unnamed repeat of a resolved name as that same row', function (): void {
+        $old = $this->confirm->execute(
+            $this->propose->execute($this->part, ClassificationAxis::Category, 'Running boards', 0.6),
+            $this->person,
+        );
+        $this->categories->create('Running boards', $this->accessories);
+
+        $again = $this->propose->execute($this->part, ClassificationAxis::Category, 'Running boards', 0.9);
+
+        expect($again->id)->toBe($old->id)
+            ->and($again->status)->toBe(MatchStatus::Confirmed);
     });
 
     it('reinstating a replaced category clears its replacement link', function (): void {
