@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `NextPartSku` makes the `P-######` numbering public, so a surface that creates a part with no
+  vendor item takes the same sequence and the same step past typed skus. `CreatePartFromVendorItem`
+  uses it
+
 ## [0.4.1] - 2026-10-31
 
 ### Changed
