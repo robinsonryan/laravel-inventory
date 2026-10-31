@@ -107,9 +107,11 @@ final class PartMatch extends Model
      * The review queue: every open proposal, plus a rejected match standing in
      * for a vendor item left with nothing open or confirmed.
      *
-     * RejectMatch opens an empty proposal so that second case should not arise.
-     * It is the safety net, and it shows the newest rejection only, so a vendor
-     * item never queues twice.
+     * A new-part suggestion waits behind an open part for its vendor item and
+     * comes forward if that part is rejected. Rival parts queue one by one,
+     * because a person has to see each. The stand-in is the newest rejected row,
+     * so a vendor item with nothing open queues once. Its status stays `vetoed`:
+     * it has no proposal to confirm, only a vendor item needing a part.
      *
      * @param  Builder<self>  $query
      * @return Builder<self>
@@ -119,7 +121,18 @@ final class PartMatch extends Model
         $table = $this->getTable();
 
         return $query->where(function (Builder $query) use ($table): void {
-            $query->where("{$table}.status", MatchStatus::Proposed->value)
+            $query->where(function (Builder $query) use ($table): void {
+                $query->where("{$table}.status", MatchStatus::Proposed->value)
+                    ->where(function (Builder $query) use ($table): void {
+                        $query->whereNotNull("{$table}.item_id")
+                            ->orWhereNotExists(function (QueryBuilder $openPart) use ($table): void {
+                                $openPart->from($table, 'open_part')
+                                    ->whereColumn('open_part.vendor_item_id', "{$table}.vendor_item_id")
+                                    ->where('open_part.status', MatchStatus::Proposed->value)
+                                    ->whereNotNull('open_part.item_id');
+                            });
+                    });
+            })
                 ->orWhere(function (Builder $query) use ($table): void {
                     $query->where("{$table}.status", MatchStatus::Vetoed->value)
                         ->whereNotExists(function (QueryBuilder $sibling) use ($table): void {

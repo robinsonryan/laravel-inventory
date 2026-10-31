@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`RejectMatch` no longer writes a placeholder proposal.** A vendor item left with nothing open or
+  confirmed queues through its newest rejected row, so `PartMatch::scopeNeedsReview()` can hand back
+  a row with `status` `vetoed` and the rejected `item_id`. Such a row has nothing to confirm: a
+  surface should ask for a part, not offer Confirm, which is a person reinstating the rejection
+- `ProposeMatch` gives each pairing its own row and no longer fills an open new-part suggestion when
+  a part is proposed, so a proposal after a rejection keeps its own `created_at` and `method`, and a
+  new-part suggestion is not overwritten
+- `ConfirmMatch` always answers a proposal with no part by rule, even when a person confirmed
+
+### Fixed
+
+- A veto the rule made is no longer treated as a person's rejection: once the match that answered a
+  new-part suggestion is rejected, the suggestion can be made again instead of being discarded.
+  `PartMatch::isVetoedByRule()` says which it was
+- A vendor item no longer queues twice for a new-part suggestion and a part suggestion in either
+  order: the new-part suggestion waits behind the open part and comes forward if the part is
+  rejected. Rival parts still queue one by one
+
 ## [0.4.0] - 2026-10-31
 
 ### Added

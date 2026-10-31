@@ -188,14 +188,72 @@ describe('ProposeMatch', function (): void {
             ->and($again->status)->toBe(MatchStatus::Vetoed);
     });
 
-    it('fills the open empty proposal when a part is proposed', function (): void {
+    it('gives a proposal after a rejection a row and a date of its own', function (): void {
+        $this->travelTo('2026-01-01 09:00:00');
         $rejected = $this->propose->execute($this->vendorItem, $this->part, 0.6, MatchMethod::Gateway);
         $this->reject->execute($rejected, $this->person);
 
+        $this->travelTo('2026-02-01 09:00:00');
         $proposal = $this->propose->execute($this->vendorItem, $this->otherPart, 0.7, MatchMethod::Gateway);
 
-        expect($proposal->item_id)->toBe($this->otherPart->id)
+        expect($proposal->id)->not->toBe($rejected->id)
+            ->and($proposal->created_at->toDateString())->toBe('2026-02-01')
+            ->and($proposal->method)->toBe(MatchMethod::Gateway)
+            ->and($rejected->refresh()->status)->toBe(MatchStatus::Vetoed)
+            ->and($rejected->created_at->toDateString())->toBe('2026-01-01')
+            ->and(PartMatch::query()->count())->toBe(2)
             ->and(PartMatch::query()->needsReview()->pluck('id')->all())->toBe([$proposal->id]);
+    });
+
+    it('queues a vendor item once when a new part is suggested after a part', function (): void {
+        $part = $this->propose->execute($this->vendorItem, $this->part, 0.6, MatchMethod::Gateway);
+
+        $newPart = $this->propose->execute($this->vendorItem, null, 0.3, MatchMethod::Gateway, ['name' => 'Axle shaft']);
+
+        expect($newPart->item_id)->toBeNull()
+            ->and($newPart->status)->toBe(MatchStatus::Proposed)
+            ->and($newPart->confidence)->toBe(0.3)
+            ->and(PartMatch::query()->needsReview()->pluck('id')->all())->toBe([$part->id]);
+    });
+
+    it('queues a vendor item once when a part is suggested after a new part, keeping both suggestions', function (): void {
+        $this->travelTo('2026-01-01 09:00:00');
+        $newPart = $this->propose->execute($this->vendorItem, null, 0.3, MatchMethod::Gateway, ['name' => 'Axle shaft']);
+
+        $this->travelTo('2026-02-01 09:00:00');
+        $part = $this->propose->execute($this->vendorItem, $this->part, 0.6, MatchMethod::ExactRepeat);
+
+        expect($part->id)->not->toBe($newPart->id)
+            ->and($part->created_at->toDateString())->toBe('2026-02-01')
+            ->and($newPart->refresh()->new_part)->toBe(['name' => 'Axle shaft'])
+            ->and($newPart->method)->toBe(MatchMethod::Gateway)
+            ->and($newPart->created_at->toDateString())->toBe('2026-01-01')
+            ->and(PartMatch::query()->needsReview()->pluck('id')->all())->toBe([$part->id]);
+    });
+
+    it('brings a waiting new-part suggestion to the queue once the part ahead of it is rejected', function (): void {
+        $part = $this->propose->execute($this->vendorItem, $this->part, 0.6, MatchMethod::Gateway);
+        $newPart = $this->propose->execute($this->vendorItem, null, 0.3, MatchMethod::Gateway, ['name' => 'Axle shaft']);
+
+        $this->reject->execute($part, $this->person);
+
+        expect(PartMatch::query()->needsReview()->pluck('id')->all())->toBe([$newPart->id]);
+    });
+
+    it('queues a new-part suggestion beside a confirmed match', function (): void {
+        $this->confirm->execute($this->propose->execute($this->vendorItem, $this->part, 0.95, MatchMethod::Gateway));
+
+        $newPart = $this->propose->execute($this->vendorItem, null, 0.4, MatchMethod::Gateway, ['name' => 'Axle shaft']);
+
+        expect(PartMatch::query()->needsReview()->pluck('id')->all())->toBe([$newPart->id]);
+    });
+
+    it('queues rival parts one by one, since a person has to see each', function (): void {
+        $first = $this->propose->execute($this->vendorItem, $this->part, 0.6, MatchMethod::Gateway);
+        $second = $this->propose->execute($this->vendorItem, $this->otherPart, 0.55, MatchMethod::Gateway);
+
+        expect(PartMatch::query()->needsReview()->pluck('id')->all())
+            ->toEqualCanonicalizing([$first->id, $second->id]);
     });
 
     it('does not offer a new part again after a person rejected that', function (): void {
@@ -206,6 +264,49 @@ describe('ProposeMatch', function (): void {
 
         expect($again->id)->toBe($newPart->id)
             ->and($again->status)->toBe(MatchStatus::Vetoed);
+    });
+});
+
+describe('a veto the rule made', function (): void {
+    it('does not stop a new part being suggested once the match that answered it is rejected', function (?object $actor): void {
+        $this->propose->execute($this->vendorItem, $this->part, 0.6, MatchMethod::Gateway);
+        $answered = $this->propose->execute($this->vendorItem, null, 0.3, MatchMethod::Gateway, ['name' => 'Axle shaft']);
+        $match = $this->confirm->execute(
+            $this->propose->execute($this->vendorItem, $this->part, 0.95, MatchMethod::Gateway),
+            $actor,
+        );
+
+        expect($answered->refresh()->status)->toBe(MatchStatus::Vetoed)
+            ->and($answered->vetoed_by_type)->toBe('rule');
+
+        $this->reject->execute($match, $this->person, 'Wrong part');
+
+        $again = $this->propose->execute($this->vendorItem, null, 0.95, MatchMethod::Gateway, ['name' => 'Axle shaft']);
+
+        expect($again->id)->not->toBe($answered->id)
+            ->and($again->status)->toBe(MatchStatus::Proposed)
+            ->and($again->confidence)->toBe(0.95)
+            ->and($again->method)->toBe(MatchMethod::Gateway)
+            ->and($again->new_part)->toBe(['name' => 'Axle shaft'])
+            ->and($answered->refresh()->status)->toBe(MatchStatus::Vetoed)
+            ->and($answered->confidence)->toBe(0.3)
+            ->and(PartMatch::query()->needsReview()->pluck('id')->all())->toBe([$again->id]);
+    })->with([
+        'confirmed by rule' => [null],
+        'confirmed by a person' => [TestActor::named()],
+    ]);
+
+    it('refreshes the open new-part suggestion rather than the old rule-vetoed row', function (): void {
+        $this->propose->execute($this->vendorItem, null, 0.3, MatchMethod::Gateway);
+        $match = $this->confirm->execute($this->propose->execute($this->vendorItem, $this->part, 0.95, MatchMethod::Gateway));
+        $this->reject->execute($match, $this->person);
+
+        $open = $this->propose->execute($this->vendorItem, null, 0.5, MatchMethod::Gateway, ['name' => 'Axle shaft']);
+        $again = $this->propose->execute($this->vendorItem, null, 0.7, MatchMethod::Gateway, ['name' => 'Axle shaft']);
+
+        expect($again->id)->toBe($open->id)
+            ->and($again->confidence)->toBe(0.7)
+            ->and(PartMatch::query()->where('status', MatchStatus::Proposed)->count())->toBe(1);
     });
 });
 
@@ -386,7 +487,7 @@ describe('RejectMatch', function (): void {
             ->and($elsewhere->refresh()->status)->toBe(MatchStatus::Confirmed);
     });
 
-    it('puts the vendor item back in the queue through a new proposal with no part', function (): void {
+    it('puts the vendor item back in the queue and opens no new row', function (): void {
         $match = $this->propose->execute($this->vendorItem, $this->part, 0.95, MatchMethod::Gateway);
         $this->confirm->execute($match);
 
@@ -395,13 +496,12 @@ describe('RejectMatch', function (): void {
         $queued = PartMatch::query()->needsReview()->get();
 
         expect($queued)->toHaveCount(1)
-            ->and($queued->first()->vendor_item_id)->toBe($this->vendorItem->id)
-            ->and($queued->first()->item_id)->toBeNull()
-            ->and($queued->first()->status)->toBe(MatchStatus::Proposed)
-            ->and($queued->first()->id)->not->toBe($match->id);
+            ->and($queued->first()->id)->toBe($match->id)
+            ->and($queued->first()->status)->toBe(MatchStatus::Vetoed)
+            ->and(PartMatch::query()->count())->toBe(1);
     });
 
-    it('adds no empty proposal while another part is still open', function (): void {
+    it('queues only what is still open while another part is open', function (): void {
         $match = $this->propose->execute($this->vendorItem, $this->part, 0.6, MatchMethod::Gateway);
         $open = $this->propose->execute($this->vendorItem, $this->otherPart, 0.55, MatchMethod::Gateway);
 
@@ -410,7 +510,7 @@ describe('RejectMatch', function (): void {
         expect(PartMatch::query()->needsReview()->pluck('id')->all())->toBe([$open->id]);
     });
 
-    it('adds no empty proposal while the vendor item stays confirmed elsewhere', function (): void {
+    it('leaves the queue alone while the vendor item stays confirmed elsewhere', function (): void {
         $this->confirm->execute($this->propose->execute($this->vendorItem, $this->part, 0.95, MatchMethod::Gateway));
         $rival = $this->propose->execute($this->vendorItem, $this->otherPart, 0.6, MatchMethod::Gateway);
 
@@ -419,14 +519,14 @@ describe('RejectMatch', function (): void {
         expect(PartMatch::query()->needsReview()->exists())->toBeFalse();
     });
 
-    it('keeps a vendor item in the queue once when its empty proposal is rejected', function (): void {
+    it('keeps a vendor item in the queue once when a new-part suggestion is rejected too', function (): void {
         $match = $this->propose->execute($this->vendorItem, $this->part, 0.95, MatchMethod::Gateway);
         $this->reject->execute($match, $this->person);
-        $empty = PartMatch::query()->needsReview()->sole();
+        $newPart = $this->propose->execute($this->vendorItem, null, 0.4, MatchMethod::Gateway, ['name' => 'Axle shaft']);
 
-        $this->reject->execute($empty, $this->person);
+        $this->reject->execute($newPart, $this->person);
 
-        expect(PartMatch::query()->needsReview()->count())->toBe(1);
+        expect(PartMatch::query()->needsReview()->pluck('id')->all())->toBe([$newPart->id]);
     });
 
     it('rejecting twice changes nothing the second time', function (): void {
@@ -437,7 +537,7 @@ describe('RejectMatch', function (): void {
 
         expect($match->refresh()->note)->toBe('Wrong side')
             ->and($match->vetoed_by_id)->toBe($this->person->getKey())
-            ->and(PartMatch::query()->count())->toBe(2);
+            ->and(PartMatch::query()->count())->toBe(1);
     });
 });
 

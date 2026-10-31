@@ -60,7 +60,7 @@ it('carries a vendor item from first sight, through a veto and a re-post, to the
     // A person rejects it: back in the queue, off the part, and nothing gone.
     $reject->execute($match, $person, 'This is the front shaft');
 
-    expect(PartMatch::query()->needsReview()->sole()->item_id)->toBeNull()
+    expect(PartMatch::query()->needsReview()->sole()->id)->toBe($match->id)
         ->and(PartPriceHistory::query()->forItem($wrongPart)->exists())->toBeFalse()
         ->and(PartPriceHistory::query()->forVendorItem($vendorItem)->sole()->purchase_line_id)->toBe($line->id);
 

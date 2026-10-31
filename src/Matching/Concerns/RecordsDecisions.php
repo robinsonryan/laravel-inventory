@@ -51,6 +51,11 @@ trait RecordsDecisions
         return $this->getAttribute('confirmed_by_type') === self::BY_RULE;
     }
 
+    public function isVetoedByRule(): bool
+    {
+        return $this->getAttribute('vetoed_by_type') === self::BY_RULE;
+    }
+
     /**
      * @template TModel of Model
      *

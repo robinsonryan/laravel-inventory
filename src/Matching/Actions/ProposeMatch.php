@@ -20,6 +20,13 @@ use RobinsonRyan\Vendor\Purchasing\Models\VendorItem;
  * rather than proposed, and only a `proposed` row is worth trying to confirm. A
  * vendor item confirmed to a different part keeps that match, and this proposal
  * joins the queue beside it.
+ *
+ * A veto is a decision only when a person made it. The rule vetoes a proposal
+ * with no part because it confirmed a part instead, which says nothing once that
+ * part is rejected, so the suggestion can be made again.
+ *
+ * Each pairing keeps its own row, so a suggestion's date and method stay its own.
+ * PartMatch::scopeNeedsReview() is what stops a vendor item queuing twice.
  */
 final class ProposeMatch
 {
@@ -49,8 +56,7 @@ final class ProposeMatch
                 return $decided;
             }
 
-            $match = $pairing->first()
-                ?? ($item instanceof Item ? $this->openEmptyProposal($vendorItem) : null)
+            $match = $pairing->first(fn (PartMatch $match): bool => $match->status === MatchStatus::Proposed)
                 ?? new PartMatch(['tenant_id' => $vendorItem->tenant_id, 'vendor_item_id' => $vendorItem->id]);
 
             $match->fill([
@@ -71,19 +77,8 @@ final class ProposeMatch
     private function decided(Collection $pairing): ?PartMatch
     {
         return $pairing->first(fn (PartMatch $match): bool => $match->status === MatchStatus::Confirmed)
-            ?? $pairing->first(fn (PartMatch $match): bool => $match->status === MatchStatus::Vetoed);
-    }
-
-    /**
-     * A proposal with no part, which a real proposal answers. Filling it in
-     * keeps a vendor item from queuing twice.
-     */
-    private function openEmptyProposal(VendorItem $vendorItem): ?PartMatch
-    {
-        return PartMatch::query()
-            ->where('vendor_item_id', $vendorItem->id)
-            ->where('status', MatchStatus::Proposed->value)
-            ->whereNull('item_id')
-            ->first();
+            ?? $pairing->first(
+                fn (PartMatch $match): bool => $match->status === MatchStatus::Vetoed && ! $match->isVetoedByRule(),
+            );
     }
 }

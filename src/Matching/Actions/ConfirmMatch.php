@@ -76,6 +76,10 @@ final class ConfirmMatch
      * Veto what this confirmation answers. A person choosing a part has passed
      * over every other part still open; the rule has not, so it answers only a
      * proposal with no part and leaves its rivals for a person to look at.
+     *
+     * A proposal with no part is answered by rule whoever confirmed. It waits
+     * behind a part in the queue, so confirming that part rejects nothing a
+     * person saw, and only a rejection stops it being suggested again.
      */
     private function answerOtherMatches(PartMatch $match, ?Model $actor): void
     {
@@ -89,7 +93,7 @@ final class ConfirmMatch
         }
 
         foreach ($answered->get() as $other) {
-            $other->markVetoed($actor);
+            $other->markVetoed($other->item_id === null ? null : $actor);
             $other->save();
         }
     }
