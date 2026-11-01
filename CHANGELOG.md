@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-11-01
+
+### Changed
+
+- Allows `robinsonryan/vendor` `^0.4.1` beside `^0.3.0`. Vendor 0.4 drops its contact columns, and
+  nothing here reads them, so an application can move to it with no change on this side. Not
+  `0.4.0`: that tag holds no code of its own
+
 ## [0.4.2] - 2026-10-31
 
 ### Added
